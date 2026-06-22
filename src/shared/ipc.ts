@@ -26,6 +26,7 @@ export const IPC = {
   },
   documents: {
     extractFile: 'documents:extract-file',
+    fetchUrl: 'documents:fetch-url',
     saveResume: 'documents:save-resume',
     reindexProfile: 'documents:reindex-profile',
   },

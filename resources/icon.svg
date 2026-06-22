@@ -1,0 +1,35 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7C7DF7"/>
+      <stop offset="0.5" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#3A2FB0"/>
+    </linearGradient>
+    <linearGradient id="spark" x1="384" y1="318" x2="640" y2="574" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#7C7DF7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- App squircle background -->
+  <rect x="0" y="0" width="1024" height="1024" rx="232" fill="url(#bg)"/>
+  <!-- Subtle top sheen -->
+  <rect x="0" y="0" width="1024" height="512" rx="232" fill="#FFFFFF" opacity="0.06"/>
+
+  <!-- Soft shadow under the speech bubble -->
+  <ellipse cx="512" cy="712" rx="262" ry="46" fill="#000000" opacity="0.18"/>
+
+  <!-- Speech bubble: rounded body + downward tail (lower-left) -->
+  <path d="M326 250 H698 A104 104 0 0 1 802 354 V566 A104 104 0 0 1 698 670 H470
+           L332 778 L378 670 H326 A104 104 0 0 1 222 566 V354 A104 104 0 0 1 326 250 Z"
+        fill="#FFFFFF"/>
+
+  <!-- AI sparkle (4-point) centered in the bubble -->
+  <path d="M512 318 Q533 439 640 446 Q533 453 512 574 Q491 453 384 446 Q491 439 512 318 Z"
+        fill="url(#spark)"/>
+  <!-- Small accent sparkles -->
+  <path d="M662 360 Q672 408 712 416 Q672 424 662 472 Q652 424 612 416 Q652 408 662 360 Z"
+        fill="#A5A6FB"/>
+  <path d="M372 506 Q379 540 408 546 Q379 552 372 586 Q365 552 336 546 Q365 540 372 506 Z"
+        fill="#C7C8FD"/>
+</svg>

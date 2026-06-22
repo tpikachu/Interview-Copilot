@@ -11,12 +11,18 @@ them for cosine search.
 profiles 1───* documents 1───* chunks ──* embeddings
    │                                   (1:1 chunk:embedding)
    ├──* notes
+   ├──* jobs ────* chunks            (JD + company-research chunks carry job_id; resume/note chunks have job_id null)
+   │       └──── sessions            (a session optionally references the job it's for)
    └──* sessions 1──* transcript_chunks
                  1──* detected_questions 1──* ai_answers
                  1──1 session_reports
 
 settings (singleton-ish key/value, incl. encrypted API key)
 ```
+
+A **profile** is just the candidate (name, role, resume). Each **job** the
+candidate targets is a separate row holding its own job description; one profile
+can have many jobs, and each job is parsed/indexed independently.
 
 ## Tables
 
@@ -33,7 +39,24 @@ settings (singleton-ish key/value, incl. encrypted API key)
 | resume_text | text | extracted raw text (nullable) |
 | jd_text | text | extracted raw text (nullable) |
 | parsed_resume | text(json) | structured candidate JSON |
+| jd_text / parsed_jd | text / text(json) | **legacy** — single-JD fields kept for back-compat; new JDs live on `jobs` |
+| created_at / updated_at | int | |
+
+### `jobs`
+A job the candidate is targeting. One profile → many jobs; each holds its own
+job description and is parsed/indexed independently.
+| col | type | notes |
+|---|---|---|
+| id | text PK | uuid |
+| profile_id | text FK | cascade on profile delete |
+| title | text | role/interview name, default '' |
+| company | text | nullable |
+| jd_url | text | nullable — optional link to the original posting (reference only; not parsed) |
+| jd_text | text | nullable — JD text that is parsed + embedded |
 | parsed_jd | text(json) | structured JD JSON |
+| company_url | text | nullable — optional company website to research |
+| company_research | text | nullable — readable text scraped from the company site (parsed + embedded as `company` chunks) |
+| parsed_company | text(json) | nullable — structured interview-relevant research (overview, products, values, culture, …) |
 | created_at / updated_at | int | |
 
 ### `documents`
@@ -46,13 +69,16 @@ Freeform additional notes attached to a profile.
 
 ### `chunks`
 Chunked text from documents/notes/profile fields for RAG.
-| id | profile_id FK | source_type (resume/jd/note) | source_id | ord | content | token_count | created_at |
+| id | profile_id FK | job_id FK (nullable) | source_type (resume/jd/note/company) | source_id | ord | content | token_count | created_at |
+
+`job_id` is set on JD **and** company-research chunks (both cascade on job
+delete); resume/note chunks have `job_id` null.
 
 ### `embeddings`
 | id | chunk_id FK (unique) | model | dim | vector BLOB | created_at |
 
 ### `sessions`
-| id | profile_id FK | interview_type | status (idle/live/stopped) | started_at | ended_at | created_at |
+| id | profile_id FK | job_id FK (nullable, on delete set null) | interview_type | status (idle/live/stopped) | started_at | ended_at | created_at |
 
 ### `transcript_chunks`
 | id | session_id FK | speaker (interviewer/candidate/unknown) | text | is_final (int bool) | t_start | t_end | created_at |
@@ -77,13 +103,17 @@ Known keys:
 - `overlay_prefs` — json `{opacity, fontSize, mode}`.
 - `privacy_mode` — `'1'`/`'0'`.
 - `data_consent_ack` — `'1'` once user acknowledges the compliance reminder.
+- `tour_done` — `'1'` once the first-run guided tour is completed/skipped.
 
 ## Deletion semantics
-Deleting a profile cascades to its documents, notes, chunks, embeddings,
-sessions, and everything under sessions (FK `on delete cascade`). Original
-uploaded files in `userData/documents/` are removed by the documents service.
+Deleting a profile cascades to its documents, notes, jobs, chunks, embeddings,
+sessions, and everything under sessions (FK `on delete cascade`). Deleting a job
+cascades to its JD chunks and nulls `sessions.job_id` (the session history is
+kept). Original uploaded files in `userData/documents/` are removed by the
+documents service.
 
 ## Indexes
-- `chunks(profile_id)`, `embeddings(chunk_id)`, `transcript_chunks(session_id)`,
-  `detected_questions(session_id)`, `ai_answers(question_id)`,
-  `sessions(profile_id)`.
+- `chunks(profile_id)`, `jobs(profile_id)`, `embeddings(chunk_id)`,
+  `transcript_chunks(session_id)`, `detected_questions(session_id)`,
+  `ai_answers(question_id)`, `sessions(profile_id)`, `documents(profile_id)`,
+  `notes(profile_id)`.

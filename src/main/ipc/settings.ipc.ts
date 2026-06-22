@@ -20,6 +20,7 @@ function readSettings(): AppSettings {
     overlay: settingsRepo.getJson(SETTINGS_KEYS.overlayPrefs, defaultOverlay),
     privacyMode: settingsRepo.get(SETTINGS_KEYS.privacyMode) !== '0',
     dataConsentAck: settingsRepo.get(SETTINGS_KEYS.dataConsentAck) === '1',
+    tourDone: settingsRepo.get(SETTINGS_KEYS.tourDone) === '1',
   };
 }
 
@@ -33,6 +34,7 @@ const settingsPatch = z.object({
     })
     .optional(),
   dataConsentAck: z.boolean().optional(),
+  tourDone: z.boolean().optional(),
 });
 
 export function registerSettingsIpc(): void {
@@ -51,6 +53,8 @@ export function registerSettingsIpc(): void {
     }
     if (patch.dataConsentAck !== undefined)
       settingsRepo.set(SETTINGS_KEYS.dataConsentAck, patch.dataConsentAck ? '1' : '0');
+    if (patch.tourDone !== undefined)
+      settingsRepo.set(SETTINGS_KEYS.tourDone, patch.tourDone ? '1' : '0');
     return readSettings();
   });
 

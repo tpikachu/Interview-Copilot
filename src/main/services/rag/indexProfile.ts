@@ -61,30 +61,37 @@ export async function reindexProfile(
   return { chunks: rows.length, embedded: await embedChunks(rows) };
 }
 
-/** (Re)index a single job's JD (jobId set). */
+/** (Re)index a single job's context (jobId set): its JD plus any company research
+ *  scraped from the company website. Both are scoped to the job. */
 export async function indexJob(jobId: string): Promise<{ chunks: number; embedded: number }> {
   const job = db().select().from(schema.jobs).where(eq(schema.jobs.id, jobId)).get();
   if (!job) throw new Error('Job not found');
 
   db().delete(schema.chunks).where(eq(schema.chunks.jobId, jobId)).run();
-  if (!job.jdText) return { chunks: 0, embedded: 0 };
+
+  const sources: { type: 'jd' | 'company'; text: string }[] = [];
+  if (job.jdText) sources.push({ type: 'jd', text: job.jdText });
+  if (job.companyResearch) sources.push({ type: 'company', text: job.companyResearch });
+  if (sources.length === 0) return { chunks: 0, embedded: 0 };
 
   const rows: { id: string; content: string }[] = [];
-  for (const c of chunkText(job.jdText)) {
-    const id = crypto.randomUUID();
-    db()
-      .insert(schema.chunks)
-      .values({
-        id,
-        profileId: job.profileId,
-        jobId,
-        sourceType: 'jd',
-        ord: c.ord,
-        content: c.content,
-        tokenCount: Math.ceil(c.content.length / 4),
-      })
-      .run();
-    rows.push({ id, content: c.content });
+  for (const src of sources) {
+    for (const c of chunkText(src.text)) {
+      const id = crypto.randomUUID();
+      db()
+        .insert(schema.chunks)
+        .values({
+          id,
+          profileId: job.profileId,
+          jobId,
+          sourceType: src.type,
+          ord: c.ord,
+          content: c.content,
+          tokenCount: Math.ceil(c.content.length / 4),
+        })
+        .run();
+      rows.push({ id, content: c.content });
+    }
   }
   return { chunks: rows.length, embedded: await embedChunks(rows) };
 }

@@ -10,8 +10,12 @@ function toJob(r: Row): Job {
     profileId: r.profileId,
     title: r.title,
     company: r.company,
+    jdUrl: r.jdUrl,
     jdText: r.jdText,
     parsedJd: r.parsedJd ? JSON.parse(r.parsedJd) : null,
+    companyUrl: r.companyUrl,
+    companyResearch: r.companyResearch,
+    parsedCompany: r.parsedCompany ? JSON.parse(r.parsedCompany) : null,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };
@@ -33,7 +37,14 @@ export const jobsRepo = {
     return r ? toJob(r) : null;
   },
 
-  create(input: { profileId: string; title: string; company: string | null; jdText: string | null }): Job {
+  create(input: {
+    profileId: string;
+    title: string;
+    company: string | null;
+    jdUrl: string | null;
+    jdText: string | null;
+    companyUrl: string | null;
+  }): Job {
     const id = crypto.randomUUID();
     db()
       .insert(schema.jobs)
@@ -42,7 +53,9 @@ export const jobsRepo = {
         profileId: input.profileId,
         title: input.title,
         company: input.company,
+        jdUrl: input.jdUrl,
         jdText: input.jdText,
+        companyUrl: input.companyUrl,
       })
       .run();
     return this.get(id)!;
@@ -52,9 +65,14 @@ export const jobsRepo = {
     const set: Record<string, unknown> = { updatedAt: Date.now() };
     if (patch.title !== undefined) set.title = patch.title;
     if (patch.company !== undefined) set.company = patch.company;
+    if (patch.jdUrl !== undefined) set.jdUrl = patch.jdUrl;
     if (patch.jdText !== undefined) set.jdText = patch.jdText;
     if (patch.parsedJd !== undefined)
       set.parsedJd = patch.parsedJd ? JSON.stringify(patch.parsedJd) : null;
+    if (patch.companyUrl !== undefined) set.companyUrl = patch.companyUrl;
+    if (patch.companyResearch !== undefined) set.companyResearch = patch.companyResearch;
+    if (patch.parsedCompany !== undefined)
+      set.parsedCompany = patch.parsedCompany ? JSON.stringify(patch.parsedCompany) : null;
     db().update(schema.jobs).set(set).where(eq(schema.jobs.id, id)).run();
     return this.get(id)!;
   },

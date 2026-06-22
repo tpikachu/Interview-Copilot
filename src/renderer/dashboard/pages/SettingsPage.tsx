@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSettingsStore } from '../../store/useSettingsStore';
+import { useTourStore } from '../../store/useTourStore';
 import { api } from '../../lib/api';
 import type { AppSettings } from '@shared/types';
 import { Badge, Button, Card, Field, Page, Switch, TextInput } from '../../components/ui';
@@ -39,6 +40,7 @@ const MODEL_FIELDS: { key: string; label: string; hint: string; suggest: string[
 
 export default function SettingsPage() {
   const { settings, load, saveApiKey, clearApiKey, testApiKey } = useSettingsStore();
+  const startTour = useTourStore((s) => s.start);
   const [key, setKey] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -152,6 +154,16 @@ export default function SettingsPage() {
       </Card>
 
       {settings && <ModelsCard settings={settings} onSaved={load} />}
+
+      <Card className="mt-5">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="font-medium">Getting started</h3>
+            <p className="text-xs text-neutral-500">Replay the guided tour of the app.</p>
+          </div>
+          <Button onClick={startTour}>▶ Replay tour</Button>
+        </div>
+      </Card>
     </Page>
   );
 }

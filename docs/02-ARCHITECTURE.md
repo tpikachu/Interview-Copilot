@@ -46,12 +46,13 @@ only through a typed, allow-listed preload bridge.
 | DB | SQLite via `better-sqlite3` |
 | ORM/migrations | Drizzle ORM + drizzle-kit |
 | Vectors | MVP: vectors stored in SQLite (JSON/BLOB) + in-process cosine search. Scale path: LanceDB or `sqlite-vec` extension. |
-| AI | OpenAI Node SDK — Responses API, embeddings, STT/transcription |
-| OCR | Tesseract.js (local); OpenAI Vision later |
+| AI | OpenAI Node SDK — Responses API, embeddings, STT/transcription, Realtime, TTS |
+| Coding-from-image | OpenAI Vision (no local OCR dependency) |
 | Packaging | electron-builder |
 
 > **Vector decision for MVP:** brute-force cosine over stored embeddings in
-> SQLite. Resume+JD+notes per profile = a few hundred chunks max, so in-memory
+> SQLite. Resume+notes per profile plus JD+company-research per job = a few
+> hundred chunks max, so in-memory
 > cosine is sub-millisecond and avoids native-extension/packaging friction.
 > The retriever is an interface (`VectorStore`) so we can swap in LanceDB or
 > `sqlite-vec` without touching callers.
@@ -94,14 +95,17 @@ A thin internal service module (main only) wraps the SDK:
 
 ```
 services/openai/
-  client.ts        // lazily-built OpenAI client from decrypted key
-  models.ts        // central model id config (Responses, embeddings, STT)
-  parsing.ts       // resume/JD → structured JSON (json schema / structured output)
-  embeddings.ts    // embed(texts[]) -> number[][]
-  answer.ts        // streamAnswer(question, context, profile) -> async iterator
-  questions.ts     // classifyQuestion(text) -> {type, confidence, strategy}
-  transcription.ts // transcribeChunk(audio) -> text
-  coding.ts        // solveFromOcr(text) -> approach/edge/complexity/outline
+  client.ts          // lazily-built OpenAI client from decrypted key
+  models.ts          // central model id config (Responses, embeddings, STT, TTS, vision)
+  parsing.ts         // resume/JD/company → structured JSON (parseResume/parseJobDescription/parseCompany)
+  embeddings.ts      // embed(texts[]) -> Float32Array[]
+  answer.ts          // streamAnswer(question, context, profile) -> async iterator
+  questions.ts       // classifyQuestion(text) -> {type, confidence, strategy}
+  transcription.ts   // transcribeChunk(audio) -> text
+  realtime.ts        // RealtimeTranscriber: delta-level STT (+ realtimeEvents.ts)
+  coding.ts/vision.ts// solveFromOcr(text) / solveFromImage(image) -> coding solution
+  interviewer.ts     // generateQuestion(...) for mock interviews
+  tts.ts             // speak(text, voice) -> audio Buffer (mock interviewer)
 ```
 
 Cross-cutting: central model config, retry/backoff, error normalization,

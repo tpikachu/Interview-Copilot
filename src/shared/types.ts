@@ -17,7 +17,7 @@ export type AnswerStyle =
   | 'conversational';
 
 export type DocumentKind = 'resume' | 'jd' | 'note' | 'other';
-export type ChunkSource = 'resume' | 'jd' | 'note';
+export type ChunkSource = 'resume' | 'jd' | 'note' | 'company';
 export type SessionStatus = 'idle' | 'live' | 'stopped';
 export type Speaker = 'interviewer' | 'candidate' | 'unknown';
 
@@ -71,6 +71,17 @@ export interface ParsedJd {
   focusAreas: string[];
 }
 
+/** Structured, interview-relevant research extracted from a company website. */
+export interface ParsedCompany {
+  overview: string;
+  products: string[];
+  techStack: string[];
+  values: string[];
+  culture: string[];
+  recentNews: string[];
+  interviewAngles: string[]; // ways to tailor answers to this company
+}
+
 export interface Document {
   id: string;
   profileId: string;
@@ -93,8 +104,12 @@ export interface Job {
   profileId: string;
   title: string;
   company: string | null;
+  jdUrl: string | null;
   jdText: string | null;
   parsedJd: ParsedJd | null;
+  companyUrl: string | null;
+  companyResearch: string | null;
+  parsedCompany: ParsedCompany | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -190,6 +205,7 @@ export interface AppSettings {
   overlay: OverlayPrefs;
   privacyMode: boolean;
   dataConsentAck: boolean;
+  tourDone: boolean; // first-run guided tour completed/skipped
 }
 
 // ---- main -> renderer push event payloads ----

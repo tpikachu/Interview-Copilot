@@ -60,8 +60,12 @@ export const jobs = sqliteTable(
       .references(() => profiles.id, { onDelete: 'cascade' }),
     title: text('title').notNull().default(''),
     company: text('company'),
+    jdUrl: text('jd_url'), // optional link to the original posting (reference only)
     jdText: text('jd_text'),
     parsedJd: text('parsed_jd'), // json
+    companyUrl: text('company_url'), // optional company website to research
+    companyResearch: text('company_research'), // raw text scraped from the site
+    parsedCompany: text('parsed_company'), // json — structured interview-relevant research
     createdAt: integer('created_at').notNull().default(now),
     updatedAt: integer('updated_at').notNull().default(now),
   },

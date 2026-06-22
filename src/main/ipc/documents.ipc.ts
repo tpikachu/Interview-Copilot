@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { IPC } from '@shared/ipc';
 import { handle } from './helpers';
 import { extractText } from '../services/documents/extract';
+import { fetchUrlText } from '../services/documents/fetchUrl';
 import { parseResume } from '../services/openai/parsing';
 import { reindexProfile } from '../services/rag/indexProfile';
 import { profilesRepo } from '../db/repositories/profiles.repo';
@@ -18,6 +19,14 @@ export function registerDocumentsIpc(): void {
       const filename = filePath.split(/[\\/]/).pop() ?? 'document';
       return { text, mime, filename };
     },
+  );
+
+  // Best-effort: download a (job-posting) URL and return its readable text so
+  // the user can review it before saving. Nothing is persisted here.
+  handle(
+    IPC.documents.fetchUrl,
+    z.object({ url: z.string().min(1) }),
+    ({ url }) => fetchUrlText(url),
   );
 
   // Save the resume text and (when a key exists) parse it + reindex the profile

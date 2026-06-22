@@ -32,9 +32,12 @@ export default function SessionPage() {
   const [profileId, setProfileId] = useState('');
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobId, setJobId] = useState('');
-  const [newJob, setNewJob] = useState({ title: '', company: '', jdText: '' });
+  const [newJob, setNewJob] = useState({ title: '', company: '', jdUrl: '', jdText: '', companyUrl: '' });
   const [showNewJob, setShowNewJob] = useState(false);
   const [savingJob, setSavingJob] = useState(false);
+  const [fetchingJd, setFetchingJd] = useState(false);
+  const [jdNotice, setJdNotice] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+  const [saveNotice, setSaveNotice] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
 
   const [interviewType, setInterviewType] = useState<InterviewType>('behavioral');
   const [answerStyle, setAnswerStyle] = useState<AnswerStyle>('concise');
@@ -90,17 +93,30 @@ export default function SessionPage() {
   const saveJob = async () => {
     if (!profileId || (!newJob.title.trim() && !newJob.jdText.trim())) return;
     setSavingJob(true);
+    setSaveNotice(null);
     try {
-      const res = (await api.jobs.save({
+      const res = await api.jobs.save({
         profileId,
         title: newJob.title.trim() || 'Untitled role',
         company: newJob.company.trim() || null,
+        jdUrl: newJob.jdUrl.trim() || null,
         jdText: newJob.jdText.trim() || null,
-      })) as { job: Job };
+        companyUrl: newJob.companyUrl.trim() || null,
+      });
       await refreshJobs(profileId);
-      setJobId(res.job.id);
-      setNewJob({ title: '', company: '', jdText: '' });
+      setJobId((res.job as Job).id);
+      setNewJob({ title: '', company: '', jdUrl: '', jdText: '', companyUrl: '' });
+      setJdNotice(null);
       setShowNewJob(false);
+      // Surface the outcome of the (best-effort) company research.
+      if (res.companyError) {
+        setSaveNotice({
+          tone: 'err',
+          text: `Interview saved, but company research failed: ${res.companyError}`,
+        });
+      } else if (res.companyResearched) {
+        setSaveNotice({ tone: 'ok', text: 'Interview saved & company researched ✓' });
+      }
     } finally {
       setSavingJob(false);
     }
@@ -111,6 +127,28 @@ export default function SessionPage() {
     if (!filePath) return;
     const { text } = await api.documents.extractFile(filePath);
     setNewJob((j) => ({ ...j, jdText: text }));
+  };
+
+  // Best-effort: pull the JD text from the pasted link into the text box. Job
+  // sites that block bots or render client-side will fail — the user can then
+  // paste the description manually.
+  const fetchJd = async () => {
+    const url = newJob.jdUrl.trim();
+    if (!url) return;
+    setFetchingJd(true);
+    setJdNotice(null);
+    try {
+      const { text, title } = await api.documents.fetchUrl(url);
+      setNewJob((j) => ({ ...j, jdText: text, title: j.title || title || '' }));
+      setJdNotice({ tone: 'ok', text: 'Fetched the page text — review & trim it below, then Save.' });
+    } catch (e) {
+      setJdNotice({
+        tone: 'err',
+        text: `${(e as Error).message} Please paste the job description below so it can be parsed precisely.`,
+      });
+    } finally {
+      setFetchingJd(false);
+    }
   };
 
   const deleteJob = async (id: string) => {
@@ -237,11 +275,38 @@ export default function SessionPage() {
                             {j.title || 'Untitled role'}
                             {j.company ? ` · ${j.company}` : ''}
                           </div>
-                          {j.parsedJd ? (
-                            <Badge tone="green">JD parsed ✓</Badge>
-                          ) : (
-                            <Badge tone="amber">no JD</Badge>
-                          )}
+                          <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                            {j.parsedJd ? (
+                              <Badge tone="green">JD parsed ✓</Badge>
+                            ) : (
+                              <Badge tone="amber">no JD</Badge>
+                            )}
+                            {j.parsedCompany && <Badge tone="blue">company ✓</Badge>}
+                            {j.jdUrl && (
+                              <a
+                                href={j.jdUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="truncate text-xs text-indigo-300 hover:underline"
+                                title={j.jdUrl}
+                              >
+                                🔗 posting
+                              </a>
+                            )}
+                            {j.companyUrl && (
+                              <a
+                                href={j.companyUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="truncate text-xs text-indigo-300 hover:underline"
+                                title={j.companyUrl}
+                              >
+                                🏢 site
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <button
@@ -276,6 +341,36 @@ export default function SessionPage() {
                       />
                     </Field>
                   </div>
+                  <Field
+                    label="JD link (optional)"
+                    hint="Paste the job-posting URL — we’ll try to pull the description in. Some sites block this; you can always paste below."
+                  >
+                    <div className="flex gap-2">
+                      <TextInput
+                        type="url"
+                        value={newJob.jdUrl}
+                        onChange={(e) => setNewJob((j) => ({ ...j, jdUrl: e.target.value }))}
+                        onKeyDown={(e) => e.key === 'Enter' && fetchJd()}
+                        placeholder="https://company.com/careers/123"
+                        className="flex-1"
+                      />
+                      <Button
+                        variant="default"
+                        onClick={fetchJd}
+                        loading={fetchingJd}
+                        disabled={!newJob.jdUrl.trim()}
+                      >
+                        Fetch
+                      </Button>
+                    </div>
+                  </Field>
+                  {jdNotice && (
+                    <p
+                      className={`text-xs ${jdNotice.tone === 'err' ? 'text-amber-400' : 'text-green-400'}`}
+                    >
+                      {jdNotice.text}
+                    </p>
+                  )}
                   <Button variant="default" onClick={uploadJd}>
                     ⬆ Upload JD file
                   </Button>
@@ -287,8 +382,26 @@ export default function SessionPage() {
                       placeholder="Paste the job description"
                     />
                   </Field>
+                  <Field
+                    label="Company website (optional)"
+                    hint="On save we’ll research the site (about, careers, …) so answers can speak to the company’s products, values & culture. Needs an OpenAI key."
+                  >
+                    <TextInput
+                      type="url"
+                      value={newJob.companyUrl}
+                      onChange={(e) => setNewJob((j) => ({ ...j, companyUrl: e.target.value }))}
+                      placeholder="https://company.com"
+                    />
+                  </Field>
+                  {saveNotice && (
+                    <p
+                      className={`text-xs ${saveNotice.tone === 'err' ? 'text-amber-400' : 'text-green-400'}`}
+                    >
+                      {saveNotice.text}
+                    </p>
+                  )}
                   <Button variant="primary" onClick={saveJob} loading={savingJob}>
-                    Save interview
+                    {newJob.companyUrl.trim() ? 'Save & research' : 'Save interview'}
                   </Button>
                 </div>
               )}

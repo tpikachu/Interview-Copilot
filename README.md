@@ -10,8 +10,8 @@ resume / job description / notes (local RAG).
 
 ## Stack
 Electron · React · TypeScript · Vite (electron-vite) · TailwindCSS · Zustand ·
-SQLite (better-sqlite3) · Drizzle ORM · OpenAI Node SDK · Tesseract.js ·
-electron-builder.
+SQLite (better-sqlite3) · Drizzle ORM · OpenAI Node SDK (Responses, embeddings,
+STT/Realtime, TTS, Vision) · electron-builder.
 
 ## Design docs
 See [`docs/`](docs/):
@@ -41,7 +41,8 @@ In production you set the key in **Settings** (encrypted via OS secure storage).
 | `npm run typecheck` | type-check main + renderer |
 | `npm run db:generate` | generate SQL migrations from the Drizzle schema |
 | `npm run build` | typecheck + bundle |
-| `npm run package` | build installer via electron-builder |
+| `npm run icon` | regenerate app icons from `resources/icon.svg` |
+| `npm run package` / `package:win` / `package:mac` | build installer via electron-builder (auto-cleans `release/` + kills running app first) |
 
 ## Security invariants
 - The OpenAI key lives **only** in the main process; the renderer learns a

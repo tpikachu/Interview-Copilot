@@ -34,7 +34,7 @@ new BrowserWindow({
 })
 overlay.setAlwaysOnTop(true, 'screen-saver')
 overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-// loads renderer entry: overlay.html
+// loads renderer entry: index.html?view=overlay
 ```
 - **Always-on-top**: `setAlwaysOnTop(true, 'screen-saver')`.
 - **Compact/Expanded**: renderer changes layout; main resizes window
@@ -53,7 +53,8 @@ transparent, `alwaysOnTop`, sized to the primary display's `bounds`. The screen
 is captured *before* the window shows (so the selector isn't in the frame); the
 transparent window lets the user see the live desktop while drag-selecting. The
 renderer crops the frozen frame (`capture:get-frame`) at devicePixelRatio scale,
-runs local OCR, calls `capture:solve`, then closes. Loads `selection.html`.
+calls `capture:solve-image` (Vision reads the crop), then closes. Loads
+`index.html?view=selection`.
 
 ## Window lifecycle
 
@@ -71,12 +72,15 @@ app.on('before-quit')       -> unregister shortcuts, close db
 
 ## Global shortcuts (defaults, user-rebindable later)
 
-| Shortcut | Action | Channel |
+Defined in `src/main/shortcuts.ts`. The "action" is an internal dispatch name
+(not an IPC channel) handled directly in the main process.
+
+| Shortcut | Action | Internal action |
 |---|---|---|
 | `CmdOrCtrl+Shift+Space` | Toggle overlay show/hide | `overlay:toggle` |
 | `CmdOrCtrl+Shift+P` | Pause / resume AI | `session:toggle-pause` |
-| `CmdOrCtrl+Shift+Enter` | Read problem from screen → OCR → answer | `capture:quick` |
-| `CmdOrCtrl+Shift+S` | Region select → OCR coding mode (fallback) | `capture:region` |
+| `CmdOrCtrl+Shift+Enter` | Solve coding problem from clipboard | `capture:quick` |
+| `CmdOrCtrl+Shift+S` | Region select → solve from image | `capture:region` |
 | `CmdOrCtrl+Shift+H` | Toggle Privacy Mode | `privacy:toggle` |
 | `CmdOrCtrl+Shift+\` | Toggle overlay click-through | `overlay:toggle-clickthrough` |
 
@@ -84,10 +88,15 @@ Registered with `globalShortcut.register`; all unregistered on `before-quit`.
 
 ## Renderer entry points
 
-- `index.html`   → `src/renderer/main.tsx`    (Dashboard React root, router)
-- `overlay.html` → `src/renderer/overlay.tsx` (Overlay React root)
+All three windows load the **same** `index.html` → `src/renderer/main.tsx`, which
+mounts a different React root based on the `?view=` query (`loadRenderer.ts`):
 
-Both share `src/renderer/lib` (api client wrapper, types) and Tailwind config.
+- (none) / `?view=dashboard` → Dashboard root (`dashboard/App.tsx`, router)
+- `?view=overlay`           → Overlay root (`overlay/Overlay.tsx`)
+- `?view=selection`         → Region selector (`selection/RegionSelector.tsx`)
+
+A single html entry is used because separate html files don't always serve from
+the dev server. All roots share `src/renderer/lib`, `components`, and Tailwind.
 
 ## Event push (main → overlay/dashboard)
 

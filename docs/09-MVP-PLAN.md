@@ -49,12 +49,13 @@ this repo delivers M0 and the scaffolding for M1–M2.
   the new `session:context` event.
 
 ## M4 — Coding / screenshot mode  ✅ (implemented)
-- Hotkey (`Ctrl+Shift+S`) or "Coding mode" button → captures the primary screen,
-  opens a transparent full-screen `selection` window.
-- Drag-select a region → crop the frozen frame (canvas, devicePixelRatio-aware)
-  → local Tesseract OCR → `coding.solveFromOcr` streaming to the overlay.
-- Esc cancels; empty-OCR and errors are surfaced in the selector banner.
-- Later: OpenAI Vision OCR fallback; multi-display selection.
+- Solve from clipboard text (`Ctrl+Shift+Enter` or "Solve from clipboard") →
+  `coding.solveFromOcr` streaming to the overlay.
+- Region path: `Ctrl+Shift+S` / "Select region" → captures the primary screen,
+  opens a transparent full-screen `selection` window; drag-select → crop the
+  frozen frame (canvas, devicePixelRatio-aware) → `vision.solveFromImage`.
+- Esc cancels; empty input and errors are surfaced in the selector banner.
+- Later: multi-display selection.
 
 ## M5 — Reports & privacy  ✅ (implemented)
 - Reports page: view/generate session coaching reports (summary, strengths,
@@ -66,9 +67,9 @@ this repo delivers M0 and the scaffolding for M1–M2.
 ## UI / UX pass  ✅
 - Shared UI kit (`components/ui.tsx`): Button, Card, Badge, Field, inputs,
   Spinner, PageHeader, BusyOverlay.
-- Profile editor reworked: upload/paste resume + JD together, single atomic
-  "Save & parse all" (`documents:parse-sources`, `documents:extract-file`) with a
-  blocking spinner; decoupled from key presence so saving always works.
+- Profile editor handles the **resume** only (`documents:save-resume`,
+  `documents:extract-file`) with a blocking spinner; decoupled from key presence
+  so saving always works. JD entry moved to the per-job flow (see below).
 - Consistent layout across Profiles, Session, Reports, Settings + sidebar.
 
 ## Profiles ↔ Jobs model  ✅
@@ -77,15 +78,32 @@ this repo delivers M0 and the scaffolding for M1–M2.
   parsed JSON, added/parsed independently of the resume.
 - Resume and each JD are parsed **one at a time** (`documents:save-resume`,
   `jobs:save`); JD is optional and can be added later.
+- A job can carry an optional **JD link** (`jobs.jdUrl`): paste a job-posting URL
+  and "Fetch" (`documents:fetch-url`) best-effort downloads + strips it to text;
+  the link itself is stored for reference (clickable) but not parsed. If the link
+  can't be fetched, the user is prompted to paste the JD manually.
+- A job can also carry an optional **company website** (`jobs.companyUrl`): on
+  save the app scrapes the site (`services/documents/companyResearch.ts`), parses
+  it (`parseCompany`) into `jobs.parsedCompany`, and indexes it as `company`
+  chunks scoped to the job — so answers can speak to the company. Best-effort;
+  failures surface as `companyError` and don't fail the save.
 - Chunks carry an optional `jobId`; retrieval always includes resume/notes and,
   when a session/mock selects a job, that job's JD chunks too
   (`sessions.jobId`, `retrieve(..., jobId)`).
 - Session + Mock setup expose an optional **Job** selector.
 
+## Onboarding tour  ✅
+- First-run guided tour (`dashboard/Tour.tsx`, `useTourStore`) spotlights the
+  sidebar to walk through key → profile → interview → overlay → reports.
+- Completion/skip persists `settings.tourDone`; replayable from Settings →
+  Getting started.
+
 ## M6 — Packaging & later
-- electron-builder Windows/macOS targets.
-- Later: OpenAI Realtime transcription; Vision OCR fallback; user-rebindable
-  hotkeys; vector store swap to LanceDB/sqlite-vec.
+- electron-builder Windows/macOS/Linux targets; app icon generated from
+  `resources/icon.svg`; pre-package clean step (`scripts/clean-release.mjs`).
+- Realtime transcription and Vision (image solve) are now implemented.
+- Later: user-rebindable hotkeys; multi-display capture; vector store swap to
+  LanceDB/sqlite-vec.
 
 ## Definition of done per milestone
 - Typecheck passes (`npm run typecheck`).

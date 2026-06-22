@@ -11,13 +11,16 @@ asarUnpack:
   # native module must stay unpacked
   - "**/node_modules/better-sqlite3/**"
 win:
+  icon: resources/icon.ico
   target:
     - nsis
 mac:
+  icon: resources/icon.png
   target:
     - dmg
   category: public.app-category.productivity
 linux:
+  icon: resources/icon.png
   target:
     - AppImage
 nsis:

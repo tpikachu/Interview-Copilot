@@ -6,28 +6,38 @@ Two directions:
 - **send/on** — main → renderer push events (`webContents.send` ↔
   `ipcRenderer.on`). Used for streaming deltas and state changes.
 
-All channels are defined as constants in `src/shared/ipc.ts`. Every handler
-validates input with zod. Errors are returned as `{ ok:false, error }`, never
-thrown across the boundary.
+All channels are defined as constants in `src/shared/ipc.ts` (`IPC` for
+request/response, `EVENTS` for push). The renderer only ever touches the typed
+preload facade in `src/preload/index.ts` (exposed as `window.api`). Every handler
+validates input with zod via the `handle()` helper. Errors are returned as
+`{ ok:false, error }`, never thrown across the boundary.
 
 ## Channel naming
-`<domain>:<action>` — domains: `app`, `settings`, `profiles`, `documents`,
-`notes`, `rag`, `session`, `capture`, `overlay`, `privacy`.
+`<domain>:<action>` — domains: `app`, `dialog`, `settings`, `profiles`,
+`documents`, `jobs`, `notes`, `rag`, `session`, `mock`, `capture`, `overlay`,
+`privacy`.
 
 ## invoke / handle (request → response)
 
-### app / settings
+### app / dialog
 | Channel | Request | Response |
 |---|---|---|
 | `app:get-info` | — | `{ version, platform }` |
-| `dialog:open-file` | — | `{ filePath: string \| null }` (native open dialog; renderer then calls `documents:import-file`) |
-| `settings:get` | — | `AppSettings` (no raw key — only `apiKeyPresent`) |
-| `settings:set` | `Partial<AppSettings>` | `AppSettings` |
-| `settings:set-api-key` | `{ key: string }` | `{ apiKeyPresent: true }` |
+| `dialog:open-file` | — | `{ filePath: string \| null }` (native open dialog) |
+
+### settings
+| Channel | Request | Response |
+|---|---|---|
+| `settings:get` | — | `AppSettings` (no raw key — only `apiKeyPresent`; incl. `tourDone`) |
+| `settings:set` | `Partial<AppSettings>` (`models`, `overlay`, `dataConsentAck`, `tourDone`) | `AppSettings` |
+| `settings:set-api-key` | `{ key }` | `{ apiKeyPresent: true }` |
 | `settings:clear-api-key` | — | `{ apiKeyPresent: false }` |
-| `settings:test-api-key` | — | `{ ok, model? , error? }` |
+| `settings:test-api-key` | — | `{ ok, model?, error? }` |
+| `settings:list-models` | — | `string[]` |
 
 ### profiles
+| Channel | Request | Response |
+|---|---|---|
 | `profiles:list` | — | `Profile[]` |
 | `profiles:get` | `{ id }` | `Profile` |
 | `profiles:create` | `ProfileInput` | `Profile` |
@@ -36,50 +46,85 @@ thrown across the boundary.
 | `profiles:duplicate` | `{ id }` | `Profile` |
 
 ### documents
-| `documents:import-file` | `{ profileId, kind, filePath }` | `Document` |
-| `documents:import-text` | `{ profileId, kind, filename, text }` | `Document` |
-| `documents:list` | `{ profileId }` | `Document[]` |
-| `documents:delete` | `{ id }` | `{ deleted: true }` |
-| `documents:parse` | `{ documentId }` | `{ parsed, chunks, embedded }` |
+| Channel | Request | Response |
+|---|---|---|
+| `documents:extract-file` | `{ filePath }` | `{ text, mime, filename }` (extract only; not persisted) |
+| `documents:fetch-url` | `{ url }` | `{ text, title }` (best-effort download + HTML→text of a posting URL; not persisted) |
+| `documents:save-resume` | `{ profileId, resumeText }` | `{ keyMissing, parsed, embedded }` (saves resume, parses + reindexes profile base when a key exists) |
 | `documents:reindex-profile` | `{ profileId }` | `{ chunks, embedded }` |
 
+### jobs
+A profile can target multiple jobs; each holds its own JD and is parsed/indexed
+independently.
+| Channel | Request | Response |
+|---|---|---|
+| `jobs:list` | `{ profileId }` | `Job[]` |
+| `jobs:get` | `{ id }` | `Job` |
+| `jobs:save` | `{ id?, profileId, title, company, jdUrl, jdText, companyUrl }` | `{ job, keyMissing, embedded, companyResearched, companyError }` (create or update; parses JD + indexes when a key exists. `jdUrl` is reference-only. If `companyUrl` is set, best-effort scrapes + parses the company site into `parsed_company` and indexes it as `company` chunks; failures surface in `companyError`, not as an error) |
+| `jobs:delete` | `{ id }` | `{ deleted: true }` |
+
 ### notes
+| Channel | Request | Response |
+|---|---|---|
 | `notes:list` | `{ profileId }` | `Note[]` |
 | `notes:create` | `{ profileId, content }` | `Note` |
 | `notes:delete` | `{ id }` | `{ deleted: true }` |
 
 ### rag (mostly internal; exposed for debugging)
+| Channel | Request | Response |
+|---|---|---|
 | `rag:search` | `{ profileId, query, k }` | `RetrievedChunk[]` |
 
 ### session
-| `session:start` | `{ profileId, interviewType }` | `Session` |
+| Channel | Request | Response |
+|---|---|---|
+| `session:start` | `{ profileId, interviewType, answerStyle, jobId }` | `Session` |
 | `session:stop` | `{ sessionId }` | `Session` |
 | `session:toggle-pause` | `{ sessionId }` | `{ paused }` |
+| `session:toggle-pause-active` | — | `{ paused, active }` (global shortcut target — toggles the live session) |
 | `session:audio-chunk` | `{ sessionId, audio:ArrayBuffer, mime }` | `{ accepted }` |
-| `session:list` | — | `Session[]` |
-| `session:get` | `{ id }` | `SessionDetail` (transcript+questions+answers) |
+| `session:realtime-audio` | `{ sessionId, pcm:ArrayBuffer }` | *(one-way `send`, no response — low-latency Realtime STT)* |
+| `session:list` | — | `SessionListItem[]` |
+| `session:get` | `{ id }` | `SessionDetail` (transcript + questions + answers + report) |
 | `session:delete` | `{ id }` | `{ deleted: true }` |
 | `session:generate-report` | `{ sessionId }` | `SessionReport` |
 | `session:get-report` | `{ sessionId }` | `SessionReport` |
 | `session:ask` | `{ sessionId, questionText }` | `{ questionId }` (manual ask; answer streams) |
 
+### mock (AI-driven mock interviewer)
+| Channel | Request | Response |
+|---|---|---|
+| `mock:start` | `{ profileId, voice, jobId, interviewType }` | `{ session, question, questionId, audioBase64, index, total }` |
+| `mock:answer-text` | `{ sessionId, text }` | `{ done, index, total, question?, questionId?, audioBase64? }` |
+| `mock:answer-audio` | `{ sessionId, audio:ArrayBuffer, mime }` | above + `{ transcript }` |
+| `mock:end` | `{ sessionId }` | `{ ended }` |
+
 ### capture / coding
+| Channel | Request | Response |
+|---|---|---|
 | `capture:region` | — | `{ image: dataURL }` (ad-hoc full-screen grab) |
-| `capture:open-selector` | — | `{ opened }` (captures screen, opens full-screen region selector window) |
-| `capture:get-frame` | — | `{ image }` (selection renderer fetches the frozen frame to crop) |
-| `capture:close-selector` | — | `{ closed }` |
-| `capture:ocr` | `{ image }` | `{ text }` (Tesseract.js, local) |
-| `capture:solve` | `{ text }` | `{ questionId }` (announces a `coding` question, solution streams to overlay) |
+| `capture:open-selector` | — | `{ opened: true }` (freezes screen, opens region selector window) |
+| `capture:get-frame` | — | `{ image: string \| null }` (selector fetches the frozen frame to crop) |
+| `capture:close-selector` | — | `{ closed: true }` |
+| `capture:solve` | `{ text }` | `{ started: true }` (announces a `coding` question; solution streams to overlay) |
+| `capture:solve-image` | `{ image }` | `{ started: true }` (vision-based solve from an image) |
+| `capture:quick-solve` | — | `{ started: true }` (solve from clipboard text) |
 
 ### overlay / privacy
+| Channel | Request | Response |
+|---|---|---|
 | `overlay:show` / `overlay:hide` / `overlay:toggle` | — | `{ visible }` |
-| `overlay:set-mode` | `{ mode:'compact'|'expanded' }` | `{ mode }` |
+| `overlay:set-mode` | `{ mode:'compact'\|'expanded' }` | `{ mode }` |
 | `overlay:set-opacity` | `{ opacity }` | `{ opacity }` |
 | `overlay:set-clickthrough` | `{ enabled }` | `{ enabled }` |
-| `privacy:toggle` | — | `{ enabled }` |
 | `privacy:get` | — | `{ enabled }` |
+| `privacy:toggle` | — | `{ enabled }` |
+| `privacy:set` | `{ enabled }` | `{ enabled }` |
 
 ## send / on (main → renderer events)
+
+Channel constants live in `EVENTS` (`src/shared/ipc.ts`); payload types are in
+`src/shared/types.ts`.
 
 | Channel | Payload | Target |
 |---|---|---|
@@ -87,8 +132,9 @@ thrown across the boundary.
 | `session:transcript-delta` | `{ text, isFinal, speaker }` | dashboard + overlay |
 | `session:question-detected` | `DetectedQuestion` | dashboard + overlay |
 | `session:answer-delta` | `{ questionId, token }` | overlay (+ dashboard) |
-| `session:answer-meta` | `{ questionId, talkingPoints, resumeMatch, star, riskWarning, ... }` | overlay |
+| `session:answer-meta` | `{ questionId, talkingPoints, resumeMatch, star, clarifyingQuestion, riskWarning, followupQuestion }` | overlay |
 | `session:answer-done` | `{ questionId }` | overlay |
+| `session:context` | `{ questionId, question, chunks }` | dashboard (debug: retrieved chunks) |
 | `session:error` | `{ message }` | dashboard + overlay |
 | `overlay:apply-settings` | `{ opacity, fontSize, mode }` | overlay |
 | `shortcut:fired` | `{ action }` | dashboard |

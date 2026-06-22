@@ -38,22 +38,27 @@ sales-call coaching, accessibility support, etc.).
 
 | # | Feature | MVP |
 |---|---------|-----|
-| 1 | Profile management (role, company, resume, JD, notes, interview type, style) | ✅ |
-| 2 | Document ingestion (PDF/DOCX/TXT/MD/paste) + local text extraction | ✅ |
-| 3 | OpenAI structured parsing of resume & JD into JSON | ✅ |
-| 4 | Local embeddings + vector retrieval (RAG) | ✅ |
-| 5 | Live session: mic capture → STT → transcript | ✅ |
-| 6 | Question detection + classification | ✅ |
-| 7 | Streaming grounded answer generation in overlay | ✅ |
-| 8 | Floating overlay: always-on-top, compact/expanded, opacity, font size | ✅ |
-| 9 | Global hotkeys (show/hide, pause AI, screenshot) | ✅ |
-| 10 | Screenshot region capture + local OCR (Tesseract.js) → coding help | ✅ |
-| 11 | Session report generation | ✅ |
-| 12 | Secure API key storage (safeStorage / OS keychain) | ✅ |
-| 13 | Privacy Mode (reduce accidental screen-share exposure) | ✅ |
-| 14 | Local data deletion (profiles, docs, sessions, reports) | ✅ |
-| 15 | OpenAI Realtime transcription (low latency) | Later |
-| 16 | OpenAI Vision OCR fallback | Later |
+| 1 | Profile management (candidate: name, role, resume, notes, style) | ✅ |
+| 2 | Per-profile **jobs**: each holds its own JD + optional JD link, parsed/indexed independently; reused across rounds | ✅ |
+| 3 | Document ingestion (PDF/DOCX/TXT/MD/paste) + local text extraction | ✅ |
+| 4 | Best-effort JD fetch from a pasted job-posting URL (download → HTML→text) | ✅ |
+| 5 | Company research from an optional company website URL (scrape site → parse → ground answers in the company) | ✅ |
+| 6 | OpenAI structured parsing of resume, JD & company into JSON | ✅ |
+| 7 | Local embeddings + vector retrieval (RAG) | ✅ |
+| 8 | Live session: mic / system-audio capture → STT → transcript | ✅ |
+| 9 | Question detection + classification | ✅ |
+| 10 | Streaming grounded answer generation in overlay | ✅ |
+| 11 | Floating overlay: always-on-top, compact/expanded, opacity, font size | ✅ |
+| 12 | Global hotkeys (show/hide, pause AI, screenshot, solve) | ✅ |
+| 13 | Screen region / clipboard capture → coding help (Vision for images) | ✅ |
+| 14 | Mock interview mode (AI interviewer asks questions w/ TTS voice, gives feedback) | ✅ |
+| 15 | Session report generation | ✅ |
+| 16 | Secure API key storage (safeStorage / OS keychain) | ✅ |
+| 17 | Privacy Mode (reduce accidental screen-share exposure) | ✅ |
+| 18 | Local data deletion (profiles, jobs, docs, sessions, reports) | ✅ |
+| 19 | OpenAI Realtime transcription (low latency) | ✅ |
+| 20 | OpenAI Vision (solve coding problems from an image) | ✅ |
+| 21 | First-run guided tour (onboarding walkthrough; replayable from Settings) | ✅ |
 
 ## 6. User stories
 
@@ -74,10 +79,26 @@ sales-call coaching, accessibility support, etc.).
 ## 7. Functional requirements
 
 ### 7.1 Profiles
-Fields: name, target role, target company, resume (file/text), JD (file/text),
-additional notes, interview type {behavioral, technical, coding, system_design,
-product, sales, general}, answer style {concise, detailed, STAR, technical,
-conversational}, language preference. CRUD + duplicate + delete.
+A profile is the **candidate**. Fields: name, target role, resume (file/text),
+additional notes, answer style {concise, detailed, STAR, technical,
+conversational}, language preference. CRUD + duplicate + delete. The JD lives on
+jobs (7.1b), so one profile is reused across every job the candidate applies to.
+
+### 7.1b Jobs
+Each profile can have many **jobs** (the role being interviewed for). Fields:
+title, company, optional **JD link** (job-posting URL — best-effort fetched into
+text), JD text (file/paste/fetched), and an optional **company website URL**.
+Each job's JD is parsed to JSON and embedded independently of the resume and
+other jobs. The JD link is stored for reference only (clickable) — only the JD
+text is parsed/grounded.
+
+**Company research:** when a company website URL is provided, on save the app
+best-effort scrapes the site (homepage + common pages like /about, /careers),
+parses it into structured research (overview, products, values, culture,
+interview angles), and indexes it as `company` chunks scoped to that job — so
+live answers can speak precisely to the company. Failures are surfaced and
+non-fatal. When a JD link can't be reached, the user is asked to paste the JD
+manually so it can still be parsed precisely. CRUD + delete.
 
 ### 7.2 Documents
 Accept PDF, DOCX, TXT, MD, pasted text. Extract raw text **locally**. Send text
@@ -90,9 +111,10 @@ Never invent experience; if no match, produce a transferable-skills answer and a
 risk warning.
 
 ### 7.4 Live session
-Select profile → select interview type → verify API key → choose audio source →
-start. Show transcript, detected questions, streamed answers. Persist everything.
-On stop, generate a report.
+Select profile → select a job (its JD) → choose this round's interview type &
+answer style → verify API key → choose audio source (system audio for online
+calls / mic for in-person) → start. Show transcript, detected questions, streamed
+answers. Persist everything. On stop, generate a report.
 
 ### 7.5 Overlay
 Frameless, transparent, always-on-top, movable. Compact & expanded modes,
@@ -100,13 +122,20 @@ opacity slider, font-size control, pause/resume AI, show/hide via hotkey. Shows
 live transcript, suggested answer (streaming), relevant resume/project points.
 
 ### 7.6 Screenshot / coding mode
-Hotkey → region select → capture → Tesseract.js OCR → extract problem/code →
-OpenAI returns approach, edge cases, complexity, solution outline. (Vision later.)
+Solve from clipboard text (hotkey/button), or hotkey → region select → capture
+an image. OpenAI returns approach, edge cases, complexity, and a solution
+outline; images are read via the Vision model.
 
 ### 7.7 Privacy & compliance
 Privacy Mode hides/excludes overlay from capture. Persistent reminder banner:
 "Use only where AI assistance is allowed." Show exactly what is sent to OpenAI.
 Full local deletion of any entity.
+
+### 7.8 Onboarding tour
+A first-run guided tour walks new users through the core flow (add key → create
+profile → set up the interview → live overlay → reports) by spotlighting the
+sidebar. Completing or skipping it persists a `tourDone` flag so it shows only
+once; it can be replayed anytime from Settings → Getting started.
 
 ## 8. Non-functional requirements
 
@@ -123,7 +152,7 @@ Full local deletion of any entity.
 
 ## 10. Risks
 
-- STT latency/cost with chunked Whisper → mitigate with Realtime later.
+- STT latency/cost with chunked transcription → mitigated by the Realtime path.
 - Hallucinated experience → strict grounding prompt + risk warnings.
 - Overlay capture during screen share → Privacy Mode + content protection.
 - API cost surprises → show token/cost estimates; user-owned key.

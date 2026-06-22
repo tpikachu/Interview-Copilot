@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { api } from '../lib/api';
+import { useSettingsStore } from '../store/useSettingsStore';
+import { useTourStore } from '../store/useTourStore';
+import { Tour, TOUR_STEPS } from './Tour';
 import ProfilesPage from './pages/ProfilesPage';
 import ProfileEditorPage from './pages/ProfileEditorPage';
 import SessionPage from './pages/SessionPage';
@@ -9,15 +12,33 @@ import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 
 const navItems = [
-  { to: '/profiles', label: 'Profiles', icon: '👤' },
-  { to: '/session', label: 'Live Session', icon: '🎙' },
-  { to: '/mock', label: 'Mock Interview', icon: '🧑‍🏫' },
-  { to: '/reports', label: 'Reports', icon: '📄' },
-  { to: '/settings', label: 'Settings', icon: '⚙' },
+  { to: '/profiles', label: 'Profiles', icon: '👤', tour: 'nav-profiles' },
+  { to: '/session', label: 'Live Session', icon: '🎙', tour: 'nav-session' },
+  { to: '/mock', label: 'Mock Interview', icon: '🧑‍🏫', tour: 'nav-mock' },
+  { to: '/reports', label: 'Reports', icon: '📄', tour: 'nav-reports' },
+  { to: '/settings', label: 'Settings', icon: '⚙', tour: 'nav-settings' },
 ];
 
 export default function App() {
   const [overlayVisible, setOverlayVisible] = useState(false);
+  const { settings, load: loadSettings } = useSettingsStore();
+  const { running, start, stop } = useTourStore();
+
+  useEffect(() => {
+    void loadSettings();
+  }, [loadSettings]);
+
+  // Auto-launch the tour once for a brand-new user (tourDone is persisted, so
+  // finishing/skipping prevents it from showing again).
+  useEffect(() => {
+    if (settings && !settings.tourDone) start();
+  }, [settings, start]);
+
+  const finishTour = async () => {
+    stop();
+    await api.settings.set({ tourDone: true });
+    await loadSettings();
+  };
 
   const toggleOverlay = async () => {
     const { visible } = (await api.overlay.toggle()) as { visible: boolean };
@@ -41,6 +62,7 @@ export default function App() {
             <NavLink
               key={n.to}
               to={n.to}
+              data-tour={n.tour}
               className={({ isActive }) =>
                 `relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
                   isActive
@@ -64,6 +86,7 @@ export default function App() {
 
         <button
           onClick={toggleOverlay}
+          data-tour="overlay-toggle"
           title="Show/hide the floating answer overlay (Ctrl+Shift+Space)"
           className={`mt-4 flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
             overlayVisible
@@ -92,6 +115,8 @@ export default function App() {
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>
+
+      {running && <Tour steps={TOUR_STEPS} onClose={finishTour} />}
     </div>
   );
 }

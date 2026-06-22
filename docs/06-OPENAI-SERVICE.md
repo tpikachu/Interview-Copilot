@@ -9,12 +9,14 @@ Central, overridable via `settings.models`:
 
 ```ts
 export const defaultModels = {
-  answer:      'gpt-4.1',          // Responses API, streaming
-  parsing:     'gpt-4.1-mini',     // structured extraction
-  classify:    'gpt-4.1-mini',     // question classification
-  embedding:   'text-embedding-3-small', // 1536 dim
-  transcription:'gpt-4o-transcribe',     // STT for audio chunks
-  vision:      'gpt-4.1',          // later: OCR fallback
+  answer:       'gpt-4.1',                // Responses API, streaming
+  parsing:      'gpt-4.1-mini',           // structured extraction
+  classify:     'gpt-4.1-mini',           // question classification
+  embedding:    'text-embedding-3-small', // 1536 dim
+  transcription:'gpt-4o-transcribe',      // STT for audio chunks / Realtime
+  tts:          'gpt-4o-mini-tts',         // mock-interviewer voice
+  mock:         'gpt-4.1',                 // mock-interview question + feedback gen
+  vision:       'gpt-4.1',                 // solve coding problems from an image
 };
 ```
 > Model ids are configuration, not contracts — keep them in one file so they can
@@ -29,10 +31,13 @@ export const defaultModels = {
 
 ## Functions
 
-### parsing.ts — `parseResume(text)`, `parseJobDescription(text)`
-Uses Responses API with a JSON schema (structured outputs) to return typed JSON:
+### parsing.ts — `parseResume(text)`, `parseJobDescription(text)`, `parseCompany(text)`
+Uses Responses API with a JSON instruction to return typed JSON (defensively defaulted):
 - Resume → `{ skills[], projects[], workHistory[], metrics[], education[], certifications[], techStack[], leadership[] }`
 - JD → `{ requirements[], responsibilities[], keywords[], focusAreas[] }`
+- Company → `{ overview, products[], techStack[], values[], culture[], recentNews[], interviewAngles[] }`
+  from text scraped off the company website (see `services/documents/companyResearch.ts`),
+  used to tailor answers to the company.
 
 ### embeddings.ts — `embed(texts: string[]) => Float32Array[]`
 Batches inputs, returns vectors; caller stores BLOBs. Records model + dim.
@@ -53,12 +58,20 @@ Streams tokens (`{type:'delta', token}`) plus a final structured meta object:
 The handler relays deltas to overlay and persists the final answer.
 
 ### transcription.ts — `transcribeChunk(audio, mime) => string`
-Sends an audio chunk to the transcription model; returns text. MVP: chunked.
-Later: Realtime API session for delta-level latency (`realtime.ts`).
+Sends an audio chunk to the transcription model; returns text (used for the
+chunked path and mock-answer audio).
 
-### coding.ts — `solveFromOcr(text) => AsyncIterable<AnswerEvent>`
-Given OCR'd problem/code, streams: approach, edge cases, time/space complexity,
-solution outline (and code if requested).
+### realtime.ts — `RealtimeTranscriber`
+Realtime API session for delta-level STT latency; PCM is streamed one-way via
+`session:realtime-audio`. Event parsing lives in `realtimeEvents.ts`.
+
+### coding.ts — `solveFromOcr(text)`, vision.ts — `solveFromImage(image)`
+Given a coding problem as text (clipboard/selection) or an image, streams:
+approach, edge cases, time/space complexity, solution outline (and code).
+
+### interviewer.ts — `generateQuestion(...)` & tts.ts — `speak(text, voice)`
+Power the mock-interview mode: `generateQuestion` produces the next question and
+per-answer feedback; `speak` renders the interviewer's voice (returns audio Buffer).
 
 ## Cross-cutting
 - **Cost/usage**: each call returns token usage; persisted on `ai_answers.tokens`

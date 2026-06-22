@@ -1,6 +1,6 @@
 import { openai } from './client';
 import { model } from './models';
-import type { ParsedJd, ParsedResume } from '@shared/types';
+import type { ParsedCompany, ParsedJd, ParsedResume } from '@shared/types';
 
 // NOTE (skeleton): these use the Responses API with a JSON instruction. Swap to
 // strict structured outputs (json_schema) when wiring M1. Output is parsed and
@@ -13,6 +13,17 @@ Only use information present in the resume. Return JSON only.`;
 
 const JD_PROMPT = `Extract the job description as JSON with keys:
 requirements[], responsibilities[], keywords[], focusAreas[]. Return JSON only.`;
+
+const COMPANY_PROMPT = `You are researching a company from text scraped off its
+website, to help a candidate interview well. Extract JSON with keys:
+overview (1-3 sentence what-they-do summary, string),
+products[] (main products/services),
+techStack[] (technologies/tools they mention, if any),
+values[] (stated company values/mission points),
+culture[] (notes on work culture / what they look for),
+recentNews[] (recent launches, milestones, or initiatives mentioned),
+interviewAngles[] (concrete ways a candidate could tailor answers to this company).
+Only use information present in the text; leave arrays empty if unknown. Return JSON only.`;
 
 async function extractJson<T>(systemPrompt: string, text: string): Promise<T> {
   const res = await openai().responses.create({
@@ -47,5 +58,18 @@ export async function parseJobDescription(text: string): Promise<ParsedJd> {
     responsibilities: raw.responsibilities ?? [],
     keywords: raw.keywords ?? [],
     focusAreas: raw.focusAreas ?? [],
+  };
+}
+
+export async function parseCompany(text: string): Promise<ParsedCompany> {
+  const raw = await extractJson<Partial<ParsedCompany>>(COMPANY_PROMPT, text);
+  return {
+    overview: raw.overview ?? '',
+    products: raw.products ?? [],
+    techStack: raw.techStack ?? [],
+    values: raw.values ?? [],
+    culture: raw.culture ?? [],
+    recentNews: raw.recentNews ?? [],
+    interviewAngles: raw.interviewAngles ?? [],
   };
 }

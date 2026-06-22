@@ -54,6 +54,8 @@ const api = {
       invoke<{ text: string; mime: string; filename: string }>(IPC.documents.extractFile, {
         filePath,
       }),
+    fetchUrl: (url: string) =>
+      invoke<{ text: string; title: string | null }>(IPC.documents.fetchUrl, { url }),
     saveResume: (profileId: string, resumeText: string) =>
       invoke<{ keyMissing: boolean; parsed: boolean; embedded: number }>(
         IPC.documents.saveResume,
@@ -69,8 +71,17 @@ const api = {
       profileId: string;
       title: string;
       company: string | null;
+      jdUrl: string | null;
       jdText: string | null;
-    }) => invoke<{ job: unknown; keyMissing: boolean; embedded: number }>(IPC.jobs.save, input),
+      companyUrl: string | null;
+    }) =>
+      invoke<{
+        job: unknown;
+        keyMissing: boolean;
+        embedded: number;
+        companyResearched: boolean;
+        companyError: string | null;
+      }>(IPC.jobs.save, input),
     delete: (id: string) => invoke(IPC.jobs.delete, { id }),
   },
   notes: {
