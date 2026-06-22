@@ -1,0 +1,14 @@
+.vscode/
+node_modules/
+out/
+release/
+dist/
+*.log
+
+# Secrets — never commit
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db

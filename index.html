@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- CSP is applied via response headers in the main process (env-aware);
+         see src/main/index.ts. -->
+    <title>AI Interview Assistant</title>
+  </head>
+  <body>
+    <div id="root">
+      <!-- Replaced by React on mount (the #root element keeps no styles of its
+           own). If this text persists, the JS bundle failed to execute — check
+           the terminal for [overlay]/[dashboard] errors. -->
+      <div style="color: #737373; font: 13px sans-serif; padding: 12px">Loading…</div>
+    </div>
+    <script type="module" src="/src/renderer/main.tsx"></script>
+  </body>
+</html>

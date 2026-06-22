@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+/* Listening equalizer bars (overlay) */
+@keyframes eq {
+  0%,
+  100% {
+    transform: scaleY(0.25);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.eq-bar {
+  width: 3px;
+  height: 16px;
+  background: #22c55e;
+  border-radius: 2px;
+  transform-origin: bottom;
+  animation: eq 0.9s ease-in-out infinite;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply overflow-hidden bg-neutral-950 text-neutral-100 antialiased;
+  margin: 0;
+}
+
+/* Slim, unobtrusive scrollbars only where content actually scrolls */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #404040;
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}

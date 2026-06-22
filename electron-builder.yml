@@ -1,0 +1,25 @@
+appId: com.aiinterview.assistant
+productName: AI Interview Assistant
+directories:
+  output: release
+  buildResources: resources
+files:
+  - out/**/*
+  - drizzle/**/*
+  - package.json
+asarUnpack:
+  # native module must stay unpacked
+  - "**/node_modules/better-sqlite3/**"
+win:
+  target:
+    - nsis
+mac:
+  target:
+    - dmg
+  category: public.app-category.productivity
+linux:
+  target:
+    - AppImage
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
