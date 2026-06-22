@@ -5,8 +5,12 @@ directories:
   buildResources: resources
 files:
   - out/**/*
-  - drizzle/**/*
   - package.json
+# Drizzle migrations must live on disk at process.resourcesPath/drizzle (see
+# src/main/db/index.ts), NOT inside app.asar — the migrator reads them by path.
+extraResources:
+  - from: drizzle
+    to: drizzle
 asarUnpack:
   # native module must stay unpacked
   - "**/node_modules/better-sqlite3/**"
