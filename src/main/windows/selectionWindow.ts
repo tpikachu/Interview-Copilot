@@ -71,6 +71,14 @@ export function createSelectionWindow(): BrowserWindow {
 
   selectionWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   applyPrivacyToWindow(selectionWin);
+  // Re-apply Privacy Mode every time the selector is shown. The window is created
+  // hidden at startup, and on Windows the exclude-from-capture display affinity is
+  // only reliable once the window is realized — without this the (fullscreen)
+  // selector shows up on the user's screen share. Re-applying on `show` keeps it
+  // hidden from capture, matching the overlay window.
+  selectionWin.on('show', () => {
+    if (selectionWin && !selectionWin.isDestroyed()) applyPrivacyToWindow(selectionWin);
+  });
   attachDiagnostics(selectionWin, 'selector');
 
   // SAFETY NET: cancel from the main process on Escape, even if the renderer's own
@@ -128,6 +136,9 @@ export async function openSelector(): Promise<void> {
     win.webContents.send(EVENTS.selectionReset, { image: dataUrl });
     await delay(120); // let the renderer paint the frame before the window appears
 
+    // Exclude from screen capture BEFORE it appears, so it never shows on a screen
+    // share (the `show` handler re-applies, but set it up front to avoid any gap).
+    applyPrivacyToWindow(win);
     win.show();
     // Force foreground: triggered from a global shortcut the app isn't foreground,
     // so a plain show() could leave the selector behind the user's active window.
