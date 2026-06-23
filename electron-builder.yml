@@ -1,5 +1,12 @@
 appId: com.braincue.copilot
 productName: BrainCue Copilot
+# Where `electron-builder --publish` uploads installers. Creates a DRAFT GitHub
+# release named v${version}; the maintainer reviews and publishes it. The CI job
+# (.github/workflows/release.yml) provides GH_TOKEN.
+publish:
+  provider: github
+  owner: tpikachu
+  repo: Interview-Copilot
 directories:
   output: release
   buildResources: resources
