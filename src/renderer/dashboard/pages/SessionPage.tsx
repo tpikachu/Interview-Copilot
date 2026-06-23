@@ -1,17 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { useProfileStore } from '../../store/useProfileStore';
-import { useMicCapture, type AudioSource } from '../../lib/useMicCapture';
 import { useSettingsStore } from '../../store/useSettingsStore';
-import type {
-  AnswerStyle,
-  InterviewType,
-  Job,
-  Session,
-  SessionDetail,
-  SessionListItem,
-} from '@shared/types';
+import { useLiveSession, type AudioSource, type Line } from '../../store/useLiveSession';
+import type { AnswerStyle, InterviewType, Job, SessionDetail, SessionListItem } from '@shared/types';
 import { Badge, Button, Card, Field, Page, Select, TextArea, TextInput } from '../../components/ui';
 import { Waveform } from '../../components/Waveform';
 import {
@@ -34,12 +27,6 @@ const interviewTypes: InterviewType[] = [
 ];
 const answerStyles: AnswerStyle[] = ['concise', 'detailed', 'star', 'technical', 'conversational'];
 
-interface Line {
-  id: number;
-  speaker: string;
-  text: string;
-}
-
 // Cap the number of transcript lines kept in the DOM. A long interview can produce
 // thousands of lines; rendering them all bogs the page down. The full transcript is
 // persisted and available in Reports — the live view just needs the recent tail.
@@ -48,7 +35,10 @@ const MAX_LINES = 400;
 export default function SessionPage() {
   const { profiles, load } = useProfileStore();
   const { settings, load: loadSettings } = useSettingsStore();
-  const mic = useMicCapture();
+  // The live session lives in a global store so it survives navigating between
+  // pages (and keeps the mic running). This page is just a view + controls.
+  const live = useLiveSession();
+  const { session, transcript, interim, paused } = live;
 
   const [profileId, setProfileId] = useState('');
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -64,21 +54,7 @@ export default function SessionPage() {
   const [answerStyle, setAnswerStyle] = useState<AnswerStyle>('concise');
   const [source, setSource] = useState<AudioSource>('system');
 
-  const [session, setSession] = useState<Session | null>(null);
-  const [paused, setPaused] = useState(false);
-  const [transcript, setTranscript] = useState<Line[]>([]);
-  const [interim, setInterim] = useState('');
   const [ask, setAsk] = useState('');
-  const unsub = useRef<(() => void)[]>([]);
-
-  // Append a transcript line with a stable id (so the rendered tail can be capped
-  // without React key churn).
-  const lineId = useRef(0);
-  const addLine = useCallback(
-    (speaker: string, text: string) =>
-      setTranscript((t) => [...t, { id: lineId.current++, speaker, text }]),
-    [],
-  );
 
   // The most recent past session for the selected profile+job, offered for resume.
   const [lastSession, setLastSession] = useState<SessionListItem | null>(null);
@@ -93,24 +69,6 @@ export default function SessionPage() {
     void load();
     void loadSettings();
   }, [load, loadSettings]);
-
-  useEffect(() => {
-    unsub.current.push(
-      api.events.onTranscriptDelta((p) => {
-        const d = p as { text: string; speaker: string; isFinal: boolean };
-        if (d.isFinal) {
-          addLine(d.speaker, d.text);
-          setInterim('');
-        } else setInterim((prev) => prev + d.text);
-      }),
-      api.events.onQuestionDetected((p) => {
-        const d = p as { text: string };
-        addLine('detected question', d.text);
-      }),
-      api.events.onSessionState((p) => setPaused((p as { paused: boolean }).paused)),
-    );
-    return () => unsub.current.forEach((u) => u());
-  }, [addLine]);
 
   const refreshJobs = async (pid: string) => setJobs((await api.jobs.list(pid)) as Job[]);
 
@@ -207,19 +165,10 @@ export default function SessionPage() {
     await refreshJobs(profileId);
   };
 
-  const goLive = async (s: Session, priorLines: Line[]) => {
-    setSession(s);
-    lineId.current = priorLines.length;
-    setTranscript(priorLines);
-    setInterim('');
-    setAtBottom(true);
-    await mic.start(s.id, source);
-  };
-
   const start = async () => {
     if (!canStart) return;
-    const s = (await api.session.start(profileId, interviewType, answerStyle, jobId)) as Session;
-    await goLive(s, []);
+    setAtBottom(true);
+    await live.startNew({ profileId, interviewType, answerStyle, jobId, source });
   };
 
   // Continue the most recent session for this job instead of creating a new row —
@@ -228,33 +177,28 @@ export default function SessionPage() {
     if (!lastSession) return;
     setResuming(true);
     try {
-      const [s, detail] = await Promise.all([
-        api.session.resume(lastSession.id, interviewType, answerStyle) as Promise<Session>,
-        api.session.get(lastSession.id) as Promise<SessionDetail>,
-      ]);
+      const detail = (await api.session.get(lastSession.id)) as SessionDetail;
       const prior: Line[] = detail.transcript.map((c, i) => ({
         id: i,
         speaker: c.speaker,
         text: c.text,
       }));
-      await goLive(s, prior);
+      setAtBottom(true);
+      await live.resumeExisting({
+        sessionId: lastSession.id,
+        interviewType,
+        answerStyle,
+        source,
+        prior,
+      });
     } finally {
       setResuming(false);
     }
   };
 
-  const stop = async () => {
-    if (!session) return;
-    mic.stop();
-    await api.session.stop(session.id);
-    setSession(null);
-    setInterim('');
-  };
-
   const sendAsk = async () => {
     if (!session || !ask) return;
-    await api.session.ask(session.id, ask);
-    addLine('you (manual)', ask);
+    await live.ask(ask);
     setAsk('');
   };
 
@@ -567,22 +511,22 @@ export default function SessionPage() {
         <>
           <Card className="sticky top-0 z-10 mb-5 bg-neutral-900 ring-1 ring-white/5">
             <div className="flex flex-wrap items-center gap-3">
-              <Badge tone={mic.speaking ? 'green' : mic.recording ? 'blue' : 'neutral'}>
-                {mic.speaking ? '● speaking' : mic.recording ? 'listening…' : 'live'}
+              <Badge tone={live.speaking ? 'green' : live.stream ? 'blue' : 'neutral'}>
+                {live.speaking ? '● speaking' : live.stream ? 'listening…' : 'live'}
               </Badge>
               {paused && <Badge tone="amber">paused</Badge>}
-              <Button onClick={() => api.session.togglePause(session.id)}>
+              <Button onClick={() => live.togglePause()}>
                 {paused ? <><PlayIcon /> Resume AI</> : <><PauseIcon /> Pause AI</>}
               </Button>
-              <Button variant="danger" onClick={stop}>
+              <Button variant="danger" onClick={() => void live.stop()}>
                 Stop
               </Button>
               <span className="text-xs text-neutral-500">Answers stream to the Cue Card.</span>
             </div>
-            {mic.error && <p className="mt-2 text-xs text-red-400">Mic error: {mic.error}</p>}
-            {mic.stream && (
+            {live.micError && <p className="mt-2 text-xs text-red-400">Mic error: {live.micError}</p>}
+            {live.stream && (
               <div className="mt-4 rounded-lg border border-neutral-800 bg-neutral-950/60 p-2">
-                <Waveform stream={mic.stream} className="h-12 w-full" />
+                <Waveform stream={live.stream} className="h-12 w-full" />
               </div>
             )}
           </Card>
