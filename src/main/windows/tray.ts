@@ -1,7 +1,8 @@
 import { app, Menu, nativeImage, Tray } from 'electron';
 import { join } from 'path';
 import { appEvents, APP_EVENT } from '../appEvents';
-import { getPrivacy, setPrivacy } from '../services/session/privacy';
+import { getPrivacy, requestPrivacy } from '../services/session/privacy';
+import { getShortcuts } from '../shortcuts';
 import { showOverlay } from './overlayWindow';
 import { navigateMainWindow, showMainWindow } from './mainWindow';
 import { confirmQuit } from '../quit';
@@ -20,19 +21,37 @@ function iconImage(): Electron.NativeImage {
 }
 
 function buildMenu(): Menu {
+  // Show each item's configured global shortcut on the right. `registerAccelerator:
+  // false` makes it display-only — the globalShortcut registration already handles
+  // firing, so the tray must not re-register (or fight over) the accelerator.
+  const sc = getShortcuts();
   return Menu.buildFromTemplate([
-    { label: 'Show AI Assistant', click: () => showMainWindow() },
-    { label: 'Show Overlay', click: () => showOverlay() },
+    { label: 'Show BrainCue Dashboard', click: () => showMainWindow() },
+    {
+      label: 'Show BrainCue Cue Card',
+      accelerator: sc['overlay:toggle'],
+      registerAccelerator: false,
+      click: () => showOverlay(),
+    },
     { type: 'separator' },
     {
       label: 'Privacy Mode (hide from screen share)',
       type: 'checkbox',
       checked: getPrivacy(),
-      click: () => setPrivacy(!getPrivacy()),
+      accelerator: sc['privacy:toggle'],
+      registerAccelerator: false,
+      // Turning privacy OFF is confirmed first; restore the checkbox afterwards so
+      // it matches the real state whether the user confirmed or cancelled.
+      click: () => void requestPrivacy(!getPrivacy()).finally(updateTrayMenu),
     },
     { label: 'Settings', click: () => navigateMainWindow('/settings') },
     { type: 'separator' },
-    { label: 'Exit', click: () => void confirmQuit() },
+    {
+      label: 'Exit BrainCue Copilot',
+      accelerator: sc['app:quit'],
+      registerAccelerator: false,
+      click: () => void confirmQuit(),
+    },
   ]);
 }
 
@@ -45,7 +64,7 @@ export function updateTrayMenu(): void {
 export function createTray(): Tray {
   if (tray && !tray.isDestroyed()) return tray;
   tray = new Tray(iconImage());
-  tray.setToolTip('AI Interview Assistant');
+  tray.setToolTip('BrainCue Copilot');
   tray.setContextMenu(buildMenu());
   // Single-click (Windows) / click anywhere brings the dashboard forward.
   tray.on('click', () => showMainWindow());

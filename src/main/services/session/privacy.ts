@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, dialog } from 'electron';
 import { SETTINGS_KEYS, settingsRepo } from '../../db/repositories/settings.repo';
 import { broadcast } from '../../ipc/broadcast';
 import { EVENTS } from '@shared/ipc';
@@ -38,4 +38,45 @@ export function setPrivacy(enabled: boolean): boolean {
 
 export function togglePrivacy(): boolean {
   return setPrivacy(!getPrivacy());
+}
+
+let confirming = false;
+
+/** Privacy Mode is ON by default and recommended. Enabling it needs no prompt,
+ *  but DISABLING it asks for confirmation first (a single shared gate for the
+ *  tray, Settings, and the global shortcut). Returns the effective state — if the
+ *  user cancels, privacy stays on. */
+export async function requestPrivacy(enabled: boolean): Promise<boolean> {
+  if (!enabled && getPrivacy()) {
+    if (confirming) return getPrivacy(); // a dialog is already open
+    confirming = true;
+    const parent =
+      BrowserWindow.getFocusedWindow() ??
+      BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
+    const opts = {
+      type: 'warning' as const,
+      buttons: ['Turn off Privacy Mode', 'Keep it on'],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true,
+      title: 'Turn off Privacy Mode?',
+      message: 'Turn off Privacy Mode?',
+      detail:
+        'BrainCue will become visible to screen sharing and recording — anyone you share your screen with (Zoom, Meet, Teams) could see it. Leave it on unless you are sure.',
+    };
+    try {
+      const { response } = parent
+        ? await dialog.showMessageBox(parent, opts)
+        : await dialog.showMessageBox(opts);
+      if (response !== 0) return getPrivacy(); // cancelled — unchanged
+    } finally {
+      confirming = false;
+    }
+  }
+  return setPrivacy(enabled);
+}
+
+/** Toggle, routing a disable through the confirmation gate. */
+export async function togglePrivacyGuarded(): Promise<boolean> {
+  return requestPrivacy(!getPrivacy());
 }

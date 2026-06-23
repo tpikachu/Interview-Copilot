@@ -1,8 +1,8 @@
-# AI Interview Assistant
+# BrainCue Copilot
 
 A desktop (Electron) interview assistant. **Local-first data, bring-your-own
 OpenAI key.** It transcribes interviews, detects questions, and surfaces
-grounded answer suggestions in a floating always-on-top overlay using your
+grounded answer suggestions in a floating, always-on-top **Cue Card** using your
 resume / job description / notes (local RAG).
 
 > Use this only where AI assistance is permitted. Your data stays on your

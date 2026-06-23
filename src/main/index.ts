@@ -3,7 +3,7 @@ import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import { initDb } from './db';
 import { registerIpc } from './ipc';
 import { createMainWindow, showMainWindow } from './windows/mainWindow';
-import { createOverlayWindow } from './windows/overlayWindow';
+import { createOverlayWindow, showOverlay } from './windows/overlayWindow';
 import { createTray } from './windows/tray';
 import { registerGlobalShortcuts } from './shortcuts';
 import { performShutdown } from './quit';
@@ -41,7 +41,7 @@ if (!app.requestSingleInstanceLock()) {
 
 function startApp(): void {
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.aiinterview.assistant');
+  electronApp.setAppUserModelId('com.braincue.copilot');
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window);
@@ -83,12 +83,12 @@ app.whenReady().then(() => {
     initDb();
     registerIpc();
     createMainWindow();
-    // Create the overlay up front (kept hidden) so its renderer is loaded and
-    // subscribed to IPC events before any answer streams to it. Without this,
-    // clipboard/region/hotkey solves triggered with no live session would
-    // broadcast their question/answer before the lazily-created overlay had
-    // subscribed, and the events would be silently dropped.
+    // Create the overlay (Cue Card) up front and show it by default: its renderer
+    // is loaded and subscribed to IPC events before any answer streams to it, so
+    // clipboard/region/hotkey solves with no live session aren't dropped. It can
+    // be toggled with the global shortcut or the tray; closing it hides it.
     createOverlayWindow();
+    showOverlay();
     createTray();
     registerGlobalShortcuts();
     // Build marker: if you DON'T see this line on `npm run dev`, the main process

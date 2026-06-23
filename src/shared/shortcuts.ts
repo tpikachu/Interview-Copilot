@@ -22,8 +22,8 @@ export interface ShortcutDef {
 export const SHORTCUT_DEFS: ShortcutDef[] = [
   {
     id: 'overlay:toggle',
-    label: 'Show / hide overlay',
-    description: 'Toggle the floating answer overlay.',
+    label: 'Show / hide Cue Card',
+    description: 'Toggle the floating Cue Card answer panel.',
     default: 'CommandOrControl+Shift+Space',
   },
   {
@@ -53,8 +53,8 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   },
   {
     id: 'overlay:toggle-clickthrough',
-    label: 'Overlay click-through',
-    description: 'Let the mouse pass through the overlay.',
+    label: 'Cue Card click-through',
+    description: 'Let the mouse pass through the Cue Card.',
     default: 'CommandOrControl+Shift+\\',
   },
   {

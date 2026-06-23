@@ -1,11 +1,12 @@
 # Changelog
 
-Release notes for **AI Interview Assistant**, one file per version, newest first.
+Release notes for **BrainCue Copilot**, one file per version, newest first.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project uses [Semantic Versioning](https://semver.org/).
 
 | Version | Date | Highlights |
 | --- | --- | --- |
+| [0.4.0](./0.4.0.md) | 2026-06-23 | Rebrand to BrainCue Copilot, Cue Card (default-on), guarded Privacy Mode |
 | [0.3.0](./0.3.0.md) | 2026-06-23 | Custom titlebar, sidebar status panel, reset/wipe, exit hotkey |
 | [0.2.0](./0.2.0.md) | 2026-06-23 | System tray, configurable global shortcuts, animated logo |
 | [0.1.0](./0.1.0.md) | 2026-06 | Initial scaffold: live session, overlay, profiles, mock, reports |

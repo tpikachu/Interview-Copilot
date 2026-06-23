@@ -478,7 +478,7 @@ export default function SessionPage() {
               <Button variant="danger" onClick={stop}>
                 Stop
               </Button>
-              <span className="text-xs text-neutral-500">Answers stream to the overlay.</span>
+              <span className="text-xs text-neutral-500">Answers stream to the Cue Card.</span>
             </div>
             {mic.error && <p className="mt-2 text-xs text-red-400">Mic error: {mic.error}</p>}
             {mic.stream && (
@@ -504,7 +504,7 @@ export default function SessionPage() {
             <h3 className="mb-3 text-sm font-medium text-neutral-400">Transcript</h3>
             {transcript.length === 0 && !interim ? (
               <p className="text-sm text-neutral-500">
-                Transcript appears here as audio is transcribed. Answers stream to the overlay.
+                Transcript appears here as audio is transcribed. Answers stream to the Cue Card.
               </p>
             ) : (
               <div className="space-y-1.5 text-sm">

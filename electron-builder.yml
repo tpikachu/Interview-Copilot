@@ -1,5 +1,5 @@
-appId: com.aiinterview.assistant
-productName: AI Interview Assistant
+appId: com.braincue.copilot
+productName: BrainCue Copilot
 directories:
   output: release
   buildResources: resources

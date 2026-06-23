@@ -61,8 +61,8 @@ export default function SettingsPage() {
     if (settings) setPrivacyOn(settings.privacyMode);
   }, [settings]);
 
-  // Keep the switch in sync when privacy is toggled elsewhere (global shortcut
-  // Ctrl+Shift+H or the overlay button), not just from this page.
+  // Keep the switch in sync when privacy is toggled elsewhere (the global
+  // shortcut or the tray), not just from this page.
   useEffect(() => {
     return api.events.onPrivacyChanged((p) => setPrivacyOn((p as { enabled: boolean }).enabled));
   }, []);
@@ -155,7 +155,7 @@ export default function SettingsPage() {
                   ? 'Hidden from screen sharing & recording'
                   : 'Visible to screen sharing & recording'}
                 <span className="ml-2 rounded bg-neutral-800 px-1.5 py-0.5 font-mono text-[10px] text-neutral-400">
-                  Ctrl+Shift+H
+                  {formatAccel(settings?.shortcuts['privacy:toggle'] ?? 'CommandOrControl+Shift+H')}
                 </span>
               </p>
             </div>
@@ -163,14 +163,10 @@ export default function SettingsPage() {
           <Switch checked={privacyOn} onChange={setPrivacy} onLabel="Hidden" offLabel="Visible" />
         </div>
         <p className="mt-3 text-sm text-neutral-400">
-          When on, <strong>all app windows</strong> (dashboard, overlay, and region selector) are
+          When on, <strong>all app windows</strong> (dashboard, Cue Card, and region selector) are
           excluded from OS screen capture, so they don’t appear when you share your screen in Zoom,
           Google Meet, Teams, or a recording. This only affects screen capture — it does not hide the
           app from your operating system or task manager.
-        </p>
-        <p className="mt-2 text-xs text-amber-300/80">
-          Only use AI assistance where it is permitted. You are responsible for following the rules
-          of your interview, exam, or call.
         </p>
       </Card>
 
@@ -244,7 +240,7 @@ function DangerZoneCard({ onChanged }: { onChanged: () => Promise<void> }) {
           <div className="min-w-0">
             <p className="text-sm text-neutral-200">Reset app settings</p>
             <p className="text-xs text-neutral-500">
-              Restore models, overlay, privacy, and shortcuts to factory defaults. Keeps your API key
+              Restore models, Cue Card, privacy, and shortcuts to factory defaults. Keeps your API key
               and data.
             </p>
           </div>

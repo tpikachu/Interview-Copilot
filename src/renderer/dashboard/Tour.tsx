@@ -36,9 +36,8 @@ export const TOUR_STEPS: TourStep[] = [
     body: 'Mock Interview runs an AI interviewer that asks questions aloud and gives feedback — great for rehearsing.',
   },
   {
-    target: 'overlay-toggle',
-    title: 'The live overlay',
-    body: 'During a call, suggested answers stream into a floating always-on-top overlay (Ctrl+Shift+Space). Privacy Mode (Settings) hides it from screen sharing.',
+    title: 'The Cue Card',
+    body: 'During a call, suggested answers stream into the Cue Card — a floating, always-on-top panel. It’s shown by default; toggle it with Ctrl+Shift+Space or from the tray. Privacy Mode keeps it hidden from screen sharing.',
   },
   {
     target: 'nav-reports',

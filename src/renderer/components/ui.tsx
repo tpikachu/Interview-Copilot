@@ -126,7 +126,7 @@ export function Page({
   title,
   subtitle,
   actions,
-  width = 'max-w-3xl',
+  width = 'max-w-4xl',
   children,
 }: {
   title: string;
