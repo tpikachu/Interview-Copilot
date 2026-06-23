@@ -40,25 +40,23 @@ function toSession(r: typeof schema.sessions.$inferSelect): Session {
 }
 
 export const sessionManager = {
-  start(
-    profileId: string,
-    interviewType: InterviewType,
-    answerStyle: AnswerStyle,
-    jobId: string | null = null,
-  ): Session {
-    if (!profilesRepo.get(profileId)) throw new Error('Profile not found');
-    const id = crypto.randomUUID();
-    db()
-      .insert(schema.sessions)
-      .values({ id, profileId, jobId, interviewType, status: 'live', startedAt: Date.now() })
-      .run();
-    const profile = profilesRepo.get(profileId)!;
+  /** Set up the live state + Realtime transcriber for a session row (shared by
+   *  start and resume). Tears down any previous live session first. */
+  goLive(opts: {
+    sessionId: string;
+    profileId: string;
+    jobId: string | null;
+    interviewType: InterviewType;
+    answerStyle: AnswerStyle;
+    language: string;
+  }): void {
+    if (live?.transcriber) live.transcriber.stop(); // never leak a prior socket
     live = {
-      sessionId: id,
-      profileId,
-      jobId,
-      interviewType,
-      answerStyle,
+      sessionId: opts.sessionId,
+      profileId: opts.profileId,
+      jobId: opts.jobId,
+      interviewType: opts.interviewType,
+      answerStyle: opts.answerStyle,
       paused: false,
       busy: false,
       answering: false,
@@ -71,16 +69,57 @@ export const sessionManager = {
       {
         onDelta: (text) =>
           broadcast(EVENTS.transcriptDelta, { text, isFinal: false, speaker: 'interviewer' }),
-        onFinal: (text) => void this.processFinalTranscript(id, text),
+        onFinal: (text) => void this.processFinalTranscript(opts.sessionId, text),
         onError: (message) => broadcast(EVENTS.sessionError, { message }),
       },
-      profile.language || 'en',
+      opts.language || 'en',
     );
     transcriber.start();
     live.transcriber = transcriber;
 
     broadcast(EVENTS.sessionState, { status: 'live', paused: false });
+  },
+
+  start(
+    profileId: string,
+    interviewType: InterviewType,
+    answerStyle: AnswerStyle,
+    jobId: string | null = null,
+  ): Session {
+    const profile = profilesRepo.get(profileId);
+    if (!profile) throw new Error('Profile not found');
+    const id = crypto.randomUUID();
+    db()
+      .insert(schema.sessions)
+      .values({ id, profileId, jobId, interviewType, status: 'live', startedAt: Date.now() })
+      .run();
+    this.goLive({ sessionId: id, profileId, jobId, interviewType, answerStyle, language: profile.language });
     return toSession(db().select().from(schema.sessions).where(eq(schema.sessions.id, id)).get()!);
+  },
+
+  /** Re-activate an existing (stopped) session and continue it, so repeated rounds
+   *  reuse one session row instead of piling up new ones. */
+  resume(sessionId: string, interviewType: InterviewType, answerStyle: AnswerStyle): Session {
+    const row = db().select().from(schema.sessions).where(eq(schema.sessions.id, sessionId)).get();
+    if (!row) throw new Error('Session not found');
+    const profile = profilesRepo.get(row.profileId);
+    if (!profile) throw new Error('Profile not found');
+    db()
+      .update(schema.sessions)
+      .set({ status: 'live', endedAt: null, interviewType })
+      .where(eq(schema.sessions.id, sessionId))
+      .run();
+    this.goLive({
+      sessionId,
+      profileId: row.profileId,
+      jobId: row.jobId,
+      interviewType,
+      answerStyle,
+      language: profile.language,
+    });
+    return toSession(
+      db().select().from(schema.sessions).where(eq(schema.sessions.id, sessionId)).get()!,
+    );
   },
 
   /** Feed streaming PCM16 (24kHz mono) audio from the renderer to the transcriber. */

@@ -96,6 +96,7 @@ independently.
 | Channel | Request | Response |
 |---|---|---|
 | `session:start` | `{ profileId, interviewType, answerStyle, jobId }` | `Session` |
+| `session:resume` | `{ sessionId, interviewType, answerStyle }` | `Session` (re-activate an existing session row and continue it) |
 | `session:stop` | `{ sessionId }` | `Session` |
 | `session:toggle-pause` | `{ sessionId }` | `{ paused }` |
 | `session:toggle-pause-active` | — | `{ paused, active }` (global shortcut target — toggles the live session) |
