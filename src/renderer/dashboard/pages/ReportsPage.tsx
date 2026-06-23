@@ -3,8 +3,11 @@ import { api } from '../../lib/api';
 import type { SessionListItem, SessionReport } from '@shared/types';
 import { Badge, Button, Card, Page, Pager, SearchInput, Spinner } from '../../components/ui';
 import { Markdown } from '../../components/Markdown';
+import { ChevronRightIcon } from '../../components/icons';
 
-const GROUPS_PER_PAGE = 4;
+// Clients are collapsed by default and paginated, so a list of thousands stays
+// light — you expand only the ones you want to drill into.
+const GROUPS_PER_PAGE = 10;
 
 /** A session's elapsed time (live sessions count up to now). */
 function durationMs(s: SessionListItem): number {
@@ -38,6 +41,14 @@ export default function ReportsPage() {
   const [report, setReport] = useState<SessionReport | null>(null);
   const [reportError, setReportError] = useState<string | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set()); // expanded client keys
+
+  const toggleGroup = (company: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(company) ? next.delete(company) : next.add(company);
+      return next;
+    });
 
   const refresh = async () => setSessions((await api.session.list()) as SessionListItem[]);
 
@@ -140,20 +151,36 @@ export default function ReportsPage() {
         </div>
       )}
 
-      <div className="space-y-6">
-        {pageGroups.map((g) => (
-          <div key={g.company}>
-            <div className="mb-2 flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-neutral-200">{g.company}</h3>
-              <Badge>
-                {g.sessions.length} round{g.sessions.length > 1 ? 's' : ''}
-              </Badge>
-              {g.totalMs >= 1000 && (
-                <span className="text-xs text-neutral-500">· {fmtDur(g.totalMs)} total</span>
-              )}
-            </div>
-            <div className="space-y-2">
-              {g.sessions.map((s) => (
+      <div className="space-y-2">
+        {pageGroups.map((g) => {
+          const open = expanded.has(g.company);
+          return (
+            <div
+              key={g.company}
+              className="overflow-hidden rounded-xl border border-white/5 bg-neutral-900/40"
+            >
+              <button
+                type="button"
+                onClick={() => toggleGroup(g.company)}
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-white/5"
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <ChevronRightIcon
+                    className={`h-4 w-4 shrink-0 text-neutral-500 transition-transform ${open ? 'rotate-90' : ''}`}
+                  />
+                  <span className="truncate text-sm font-semibold text-neutral-100">{g.company}</span>
+                  <Badge>
+                    {g.sessions.length} round{g.sessions.length > 1 ? 's' : ''}
+                  </Badge>
+                </div>
+                <div className="flex shrink-0 items-center gap-3 text-xs text-neutral-500">
+                  {g.totalMs >= 1000 && <span>{fmtDur(g.totalMs)}</span>}
+                  <span>{new Date(g.latest).toLocaleDateString()}</span>
+                </div>
+              </button>
+              {open && (
+                <div className="space-y-2 border-t border-white/5 p-3">
+                  {g.sessions.map((s) => (
                 <Card key={s.id} className="!py-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -218,11 +245,13 @@ export default function ReportsPage() {
                       )}
                     </div>
                   )}
-                </Card>
-              ))}
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
         <Pager page={safePage} totalPages={totalPages} onPage={setPage} />
       </div>
     </Page>
