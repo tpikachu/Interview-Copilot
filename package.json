@@ -32,6 +32,7 @@
   "dependencies": {
     "better-sqlite3": "^11.8.1",
     "drizzle-orm": "^0.38.4",
+    "electron-updater": "^6.8.9",
     "mammoth": "^1.9.0",
     "openai": "^4.77.0",
     "pdf-parse": "^1.1.1",

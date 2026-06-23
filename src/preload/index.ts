@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { EVENTS, IPC } from '@shared/ipc';
+import type { UpdateStatus } from '@shared/ipc';
 import type { Result } from '@shared/result';
 
 /** invoke + unwrap the Result envelope so renderer code uses normal try/catch. */
@@ -181,6 +182,11 @@ const api = {
     toggle: () => invoke<{ enabled: boolean }>(IPC.privacy.toggle),
     set: (enabled: boolean) => invoke<{ enabled: boolean }>(IPC.privacy.set, { enabled }),
   },
+  update: {
+    getStatus: () => invoke<UpdateStatus>(IPC.update.getStatus),
+    check: () => invoke<{ ok: true }>(IPC.update.check),
+    install: () => invoke<{ ok: true }>(IPC.update.install),
+  },
   events: {
     onSessionState: (cb: (p: unknown) => void) => on(EVENTS.sessionState, cb),
     onTranscriptDelta: (cb: (p: unknown) => void) => on(EVENTS.transcriptDelta, cb),
@@ -199,6 +205,7 @@ const api = {
       on(EVENTS.windowMaximized, cb),
     onDataChanged: (cb: (p: unknown) => void) => on(EVENTS.dataChanged, cb),
     onSelectionReset: (cb: (p: { image: string }) => void) => on(EVENTS.selectionReset, cb),
+    onUpdateStatus: (cb: (p: UpdateStatus) => void) => on(EVENTS.updateStatus, cb),
   },
 };
 

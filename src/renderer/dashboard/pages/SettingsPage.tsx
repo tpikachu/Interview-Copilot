@@ -5,6 +5,7 @@ import { useTourStore } from '../../store/useTourStore';
 import { api } from '../../lib/api';
 import type { AppSettings } from '@shared/types';
 import { SHORTCUT_DEFS } from '@shared/shortcuts';
+import type { UpdateStatus } from '@shared/ipc';
 import { Badge, Button, Card, Field, Page, Switch, TextInput } from '../../components/ui';
 import { EyeIcon, EyeOffIcon, PlayIcon, RefreshIcon, TrashIcon } from '../../components/icons';
 
@@ -186,8 +187,51 @@ export default function SettingsPage() {
         </div>
       </Card>
 
+      <UpdatesCard />
+
       <DangerZoneCard onChanged={load} />
     </Page>
+  );
+}
+
+/** Software updates: current version + a manual check. Auto-update runs in the
+ *  background (packaged builds); a downloaded update prompts a restart via the
+ *  banner. In dev there's nothing to update against. */
+function UpdatesCard() {
+  const [status, setStatus] = useState<UpdateStatus | null>(null);
+
+  useEffect(() => {
+    void api.update.getStatus().then(setStatus);
+    return api.events.onUpdateStatus(setStatus);
+  }, []);
+
+  const label: Record<UpdateStatus['state'], string> = {
+    idle: 'Up to date as far as we know.',
+    checking: 'Checking for updates…',
+    available: `Found ${status?.version ? `v${status.version}` : 'an update'} — downloading…`,
+    none: 'You’re on the latest version.',
+    downloading: `Downloading${typeof status?.percent === 'number' ? ` ${status.percent}%` : '…'}`,
+    downloaded: `v${status?.version ?? ''} downloaded — restart to install.`,
+    error: `Couldn’t check: ${status?.message ?? 'unknown error'}`,
+  };
+
+  const checking = status?.state === 'checking' || status?.state === 'downloading';
+
+  return (
+    <Card className="mt-5">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h3 className="font-medium">Software updates</h3>
+          <p className="text-xs text-neutral-500">
+            Version <span className="font-mono">{status?.currentVersion ?? '—'}</span>
+            {status && status.state !== 'idle' ? ` · ${label[status.state]}` : ''}
+          </p>
+        </div>
+        <Button onClick={() => void api.update.check()} loading={checking} disabled={checking}>
+          Check for updates
+        </Button>
+      </div>
+    </Card>
   );
 }
 
