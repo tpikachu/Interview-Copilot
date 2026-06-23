@@ -3,13 +3,34 @@ import { api } from '../../lib/api';
 import type { SessionListItem, SessionReport } from '@shared/types';
 import { Badge, Button, Card, Page, Pager, SearchInput, Spinner } from '../../components/ui';
 import { Markdown } from '../../components/Markdown';
+import { ChevronRightIcon } from '../../components/icons';
 
-const GROUPS_PER_PAGE = 4;
+// Clients are collapsed by default and paginated, so a list of thousands stays
+// light — you expand only the ones you want to drill into.
+const GROUPS_PER_PAGE = 10;
+
+/** A session's elapsed time (live sessions count up to now). */
+function durationMs(s: SessionListItem): number {
+  if (!s.startedAt) return 0;
+  return Math.max(0, (s.endedAt ?? Date.now()) - s.startedAt);
+}
+/** "—" / "47 min" / "1h 23m" */
+function fmtDur(ms: number): string {
+  if (ms < 1000) return '—';
+  const min = Math.round(ms / 60000);
+  if (min < 60) return `${min} min`;
+  return `${Math.floor(min / 60)}h ${min % 60}m`;
+}
+/** Total time as decimal hours, e.g. "2.4h". */
+function fmtHours(ms: number): string {
+  return `${(ms / 3_600_000).toFixed(1)}h`;
+}
 
 interface Group {
   company: string;
   sessions: SessionListItem[];
   latest: number;
+  totalMs: number;
 }
 
 export default function ReportsPage() {
@@ -20,6 +41,14 @@ export default function ReportsPage() {
   const [report, setReport] = useState<SessionReport | null>(null);
   const [reportError, setReportError] = useState<string | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set()); // expanded client keys
+
+  const toggleGroup = (company: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(company) ? next.delete(company) : next.add(company);
+      return next;
+    });
 
   const refresh = async () => setSessions((await api.session.list()) as SessionListItem[]);
 
@@ -48,9 +77,17 @@ export default function ReportsPage() {
         company,
         sessions: list,
         latest: Math.max(...list.map((s) => s.createdAt)),
+        totalMs: list.reduce((sum, s) => sum + durationMs(s), 0),
       }))
       .sort((a, b) => b.latest - a.latest);
   }, [sessions, query]);
+
+  // Overall analytics across the (filtered) groups.
+  const totals = useMemo(() => {
+    const rounds = groups.reduce((n, g) => n + g.sessions.length, 0);
+    const ms = groups.reduce((n, g) => n + g.totalMs, 0);
+    return { companies: groups.length, rounds, ms };
+  }, [groups]);
 
   const totalPages = Math.max(1, Math.ceil(groups.length / GROUPS_PER_PAGE));
   const safePage = Math.min(page, totalPages - 1);
@@ -106,15 +143,44 @@ export default function ReportsPage() {
         <p className="py-8 text-center text-sm text-neutral-500">Nothing matches your search.</p>
       )}
 
-      <div className="space-y-6">
-        {pageGroups.map((g) => (
-          <div key={g.company}>
-            <div className="mb-2 flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-neutral-200">{g.company}</h3>
-              <Badge>{g.sessions.length} round{g.sessions.length > 1 ? 's' : ''}</Badge>
-            </div>
-            <div className="space-y-2">
-              {g.sessions.map((s) => (
+      {groups.length > 0 && (
+        <div className="mb-5 grid grid-cols-3 gap-3">
+          <Stat label="Interviews" value={String(totals.rounds)} />
+          <Stat label="Companies" value={String(totals.companies)} />
+          <Stat label="Total time" value={fmtHours(totals.ms)} />
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {pageGroups.map((g) => {
+          const open = expanded.has(g.company);
+          return (
+            <div
+              key={g.company}
+              className="overflow-hidden rounded-xl border border-white/5 bg-neutral-900/40"
+            >
+              <button
+                type="button"
+                onClick={() => toggleGroup(g.company)}
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-white/5"
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <ChevronRightIcon
+                    className={`h-4 w-4 shrink-0 text-neutral-500 transition-transform ${open ? 'rotate-90' : ''}`}
+                  />
+                  <span className="truncate text-sm font-semibold text-neutral-100">{g.company}</span>
+                  <Badge>
+                    {g.sessions.length} round{g.sessions.length > 1 ? 's' : ''}
+                  </Badge>
+                </div>
+                <div className="flex shrink-0 items-center gap-3 text-xs text-neutral-500">
+                  {g.totalMs >= 1000 && <span>{fmtDur(g.totalMs)}</span>}
+                  <span>{new Date(g.latest).toLocaleDateString()}</span>
+                </div>
+              </button>
+              {open && (
+                <div className="space-y-2 border-t border-white/5 p-3">
+                  {g.sessions.map((s) => (
                 <Card key={s.id} className="!py-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -122,10 +188,11 @@ export default function ReportsPage() {
                         {s.interviewType.replace('_', ' ')}
                         {s.jobTitle ? ` · ${s.jobTitle}` : ''}
                       </div>
-                      <div className="mt-1 flex items-center gap-2 text-xs text-neutral-400">
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-neutral-400">
                         <Badge tone={s.status === 'live' ? 'green' : 'neutral'}>{s.status}</Badge>
                         {s.profileName && <span>{s.profileName}</span>}
                         <span>{new Date(s.createdAt).toLocaleString()}</span>
+                        <span className="text-neutral-500">· {fmtDur(durationMs(s))}</span>
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -178,14 +245,25 @@ export default function ReportsPage() {
                       )}
                     </div>
                   )}
-                </Card>
-              ))}
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
         <Pager page={safePage} totalPages={totalPages} onPage={setPage} />
       </div>
     </Page>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/5 bg-neutral-900/60 px-4 py-3">
+      <div className="text-xs uppercase tracking-wide text-neutral-500">{label}</div>
+      <div className="mt-0.5 text-xl font-semibold tabular-nums text-neutral-100">{value}</div>
+    </div>
   );
 }
 

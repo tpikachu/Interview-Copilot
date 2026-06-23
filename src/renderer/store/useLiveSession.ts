@@ -1,0 +1,170 @@
+import { create } from 'zustand';
+import { api } from '../lib/api';
+import { floatTo16BitPCM, rms } from '../lib/pcm';
+import type { Session } from '@shared/types';
+
+export type AudioSource = 'mic' | 'system';
+
+export interface Line {
+  id: number;
+  speaker: string;
+  text: string;
+}
+
+/**
+ * The live interview session lives HERE, not in the SessionPage component, so it
+ * survives route changes — navigating away from Live Session no longer drops the
+ * session or stops the microphone. Audio capture (AudioContext/stream/processor)
+ * are module singletons; transcript/question events are subscribed once.
+ */
+interface LiveSessionState {
+  session: Session | null;
+  paused: boolean;
+  transcript: Line[];
+  interim: string;
+  speaking: boolean;
+  micError: string | null;
+  stream: MediaStream | null; // exposed for the waveform
+
+  startNew: (a: {
+    profileId: string;
+    interviewType: string;
+    answerStyle: string;
+    jobId: string | null;
+    source: AudioSource;
+  }) => Promise<void>;
+  resumeExisting: (a: {
+    sessionId: string;
+    interviewType: string;
+    answerStyle: string;
+    source: AudioSource;
+    prior: Line[];
+  }) => Promise<void>;
+  stop: () => Promise<void>;
+  togglePause: () => void;
+  ask: (question: string) => Promise<void>;
+}
+
+// --- audio capture singletons (outside React) ---
+let ctx: AudioContext | null = null;
+let node: ScriptProcessorNode | null = null;
+let mediaStream: MediaStream | null = null;
+let lineId = 0;
+
+async function getStream(source: AudioSource): Promise<MediaStream> {
+  if (source === 'system') {
+    const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    display.getVideoTracks().forEach((t) => t.stop());
+    if (display.getAudioTracks().length === 0) {
+      throw new Error('No system audio captured. Use Microphone, or check audio is playing.');
+    }
+    return display;
+  }
+  return navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+  });
+}
+
+export const useLiveSession = create<LiveSessionState>((set, get) => {
+  // Subscribe ONCE (this initializer runs a single time for the app's lifetime).
+  api.events.onTranscriptDelta((p) => {
+    const d = p as { text: string; speaker: string; isFinal: boolean };
+    if (d.isFinal) {
+      set((s) => ({
+        transcript: [...s.transcript, { id: lineId++, speaker: d.speaker, text: d.text }],
+        interim: '',
+      }));
+    } else {
+      set((s) => ({ interim: s.interim + d.text }));
+    }
+  });
+  api.events.onQuestionDetected((p) => {
+    const d = p as { text: string };
+    set((s) => ({
+      transcript: [...s.transcript, { id: lineId++, speaker: 'detected question', text: d.text }],
+    }));
+  });
+  api.events.onSessionState((p) => set({ paused: (p as { paused: boolean }).paused }));
+
+  async function beginCapture(sessionId: string, source: AudioSource): Promise<void> {
+    try {
+      const stream = await getStream(source);
+      mediaStream = stream;
+      set({ stream, micError: null });
+
+      ctx = new AudioContext({ sampleRate: 24000 });
+      await ctx.resume();
+      const src = ctx.createMediaStreamSource(stream);
+      node = ctx.createScriptProcessor(4096, 1, 1);
+      node.onaudioprocess = (e) => {
+        const input = e.inputBuffer.getChannelData(0);
+        set({ speaking: rms(input) > 0.012 });
+        api.session.sendRealtimeAudio(sessionId, floatTo16BitPCM(input).buffer as ArrayBuffer);
+      };
+      const mute = ctx.createGain();
+      mute.gain.value = 0;
+      src.connect(node);
+      node.connect(mute);
+      mute.connect(ctx.destination);
+    } catch (e) {
+      set({ micError: (e as Error).message });
+    }
+  }
+
+  function stopCapture(): void {
+    if (node) node.onaudioprocess = null;
+    node?.disconnect();
+    node = null;
+    void ctx?.close().catch(() => {});
+    ctx = null;
+    mediaStream?.getTracks().forEach((t) => t.stop());
+    mediaStream = null;
+    set({ stream: null, speaking: false });
+  }
+
+  return {
+    session: null,
+    paused: false,
+    transcript: [],
+    interim: '',
+    speaking: false,
+    micError: null,
+    stream: null,
+
+    startNew: async ({ profileId, interviewType, answerStyle, jobId, source }) => {
+      const s = (await api.session.start(profileId, interviewType, answerStyle, jobId)) as Session;
+      lineId = 0;
+      set({ session: s, transcript: [], interim: '', paused: false, micError: null });
+      await beginCapture(s.id, source);
+    },
+
+    resumeExisting: async ({ sessionId, interviewType, answerStyle, source, prior }) => {
+      const s = (await api.session.resume(sessionId, interviewType, answerStyle)) as Session;
+      lineId = prior.length;
+      set({ session: s, transcript: prior, interim: '', paused: false, micError: null });
+      await beginCapture(s.id, source);
+    },
+
+    stop: async () => {
+      const s = get().session;
+      if (!s) return;
+      stopCapture();
+      await api.session.stop(s.id);
+      set({ session: null, interim: '' });
+    },
+
+    togglePause: () => {
+      const s = get().session;
+      if (s) void api.session.togglePause(s.id);
+    },
+
+    ask: async (question) => {
+      const s = get().session;
+      if (!s || !question) return;
+      await api.session.ask(s.id, question);
+      set((st) => ({
+        transcript: [...st.transcript, { id: lineId++, speaker: 'you (manual)', text: question }],
+      }));
+    },
+  };
+});

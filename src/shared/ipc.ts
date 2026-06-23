@@ -47,8 +47,10 @@ export const IPC = {
   },
   jobs: {
     list: 'jobs:list',
+    page: 'jobs:page',
     get: 'jobs:get',
     save: 'jobs:save', // create or update + parse + index
+    setNotes: 'jobs:set-notes', // update just the client notes (no re-parse)
     delete: 'jobs:delete',
   },
   notes: {
@@ -129,7 +131,16 @@ export const EVENTS = {
   dataChanged: 'data:changed',
   selectionReset: 'selection:reset',
   updateStatus: 'update:status',
+  overlayClickthrough: 'overlay:clickthrough', // global shortcut -> overlay toggles click-through
+  clientInfo: 'session:client-info', // the live session's client (job) notes, for the Cue Card
 } as const;
+
+/** Client (job) context pushed to the Cue Card while a session is live. */
+export interface ClientInfo {
+  company: string | null;
+  title: string;
+  notes: string | null;
+}
 
 export type IpcEventChannel = (typeof EVENTS)[keyof typeof EVENTS];
 

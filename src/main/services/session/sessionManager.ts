@@ -3,6 +3,7 @@ import { db, schema } from '../../db';
 import { EVENTS } from '@shared/ipc';
 import { broadcast } from '../../ipc/broadcast';
 import { profilesRepo } from '../../db/repositories/profiles.repo';
+import { jobsRepo } from '../../db/repositories/jobs.repo';
 import { transcribeChunk } from '../openai/transcription';
 import { classifyQuestion } from '../openai/questions';
 import { streamAnswer } from '../openai/answer';
@@ -78,6 +79,14 @@ export const sessionManager = {
     live.transcriber = transcriber;
 
     broadcast(EVENTS.sessionState, { status: 'live', paused: false });
+    // Push the client (job) context to the Cue Card so the user can pull up their
+    // notes mid-interview.
+    const job = opts.jobId ? jobsRepo.get(opts.jobId) : null;
+    broadcast(
+      EVENTS.clientInfo,
+      job ? { company: job.company, title: job.title, notes: job.notes } : null,
+      ['overlay'],
+    );
   },
 
   start(
@@ -170,6 +179,7 @@ export const sessionManager = {
       live = null;
     }
     broadcast(EVENTS.sessionState, { status: 'stopped', paused: false });
+    broadcast(EVENTS.clientInfo, null, ['overlay']); // clear the Cue Card's client notes
     getOverlayWindow()?.hide(); // close the floating overlay when the session ends
     return toSession(
       db().select().from(schema.sessions).where(eq(schema.sessions.id, sessionId)).get()!,
