@@ -13,6 +13,7 @@ import SettingsPage from './pages/SettingsPage';
 import WhatsNewPage from './pages/WhatsNewPage';
 import { Titlebar } from './Titlebar';
 import { SidebarStatus } from './SidebarStatus';
+import { UpdateBanner } from './UpdateBanner';
 import {
   MockIcon,
   ReportIcon,
@@ -59,6 +60,7 @@ export default function App() {
   return (
     <div className="flex h-screen flex-col bg-gradient-to-b from-neutral-950 to-neutral-900 text-neutral-100">
       <Titlebar />
+      <UpdateBanner />
       <div className="flex min-h-0 flex-1">
       <aside className="flex w-60 shrink-0 flex-col border-r border-white/5 bg-neutral-950/60 p-4">
         <div className="mb-8 flex items-center gap-2.5 px-1">

@@ -102,6 +102,11 @@ export const IPC = {
     set: 'privacy:set',
     get: 'privacy:get',
   },
+  update: {
+    check: 'update:check',
+    install: 'update:install',
+    getStatus: 'update:get-status',
+  },
 } as const;
 
 /** Push event channels (webContents.send -> ipcRenderer.on). */
@@ -122,6 +127,20 @@ export const EVENTS = {
   windowMaximized: 'window:maximized',
   dataChanged: 'data:changed',
   selectionReset: 'selection:reset',
+  updateStatus: 'update:status',
 } as const;
 
 export type IpcEventChannel = (typeof EVENTS)[keyof typeof EVENTS];
+
+/** Auto-update lifecycle state pushed to the renderer (EVENTS.updateStatus). */
+export interface UpdateStatus {
+  state: 'idle' | 'checking' | 'available' | 'none' | 'downloading' | 'downloaded' | 'error';
+  /** Current app version (always set). */
+  currentVersion: string;
+  /** The newer version, when one is available/downloading/downloaded. */
+  version?: string;
+  /** Download progress 0–100 (during 'downloading'). */
+  percent?: number;
+  /** Human-readable error (during 'error'). */
+  message?: string;
+}

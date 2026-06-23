@@ -48,6 +48,9 @@ validates input with zod via the `handle()` helper. Errors are returned as
 | `window:maximize-toggle` | — | `{ maximized }` |
 | `window:close` | — | `{ ok: true }` (hides dashboard to tray) |
 | `window:is-maximized` | — | `{ maximized }` |
+| `update:get-status` | — | `UpdateStatus` (auto-update state + current version) |
+| `update:check` | — | `{ ok: true }` (trigger a check; packaged builds only) |
+| `update:install` | — | `{ ok: true }` (quit + install a downloaded update) |
 
 ### profiles
 | Channel | Request | Response |
@@ -157,6 +160,8 @@ Channel constants live in `EVENTS` (`src/shared/ipc.ts`); payload types are in
 | `app:navigate` | `{ path }` | dashboard (tray "Settings" routes here) |
 | `window:maximized` | `{ maximized }` | dashboard (titlebar maximize/restore icon) |
 | `data:changed` | `{ reason }` | dashboard (refresh status panel after a data wipe) |
+| `selection:reset` | `{ image }` | region selector (push a fresh frame + reset state) |
+| `update:status` | `UpdateStatus` | dashboard (auto-update banner + Settings) |
 
 ## Result envelope
 ```ts

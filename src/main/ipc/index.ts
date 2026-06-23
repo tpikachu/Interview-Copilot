@@ -10,6 +10,7 @@ import { registerCaptureIpc } from './capture.ipc';
 import { registerOverlayIpc } from './overlay.ipc';
 import { registerWindowIpc } from './window.ipc';
 import { registerDataIpc } from './data.ipc';
+import { registerUpdateIpc } from './update.ipc';
 
 /** Wire every IPC handler. Called once after the DB is initialized. */
 export function registerIpc(): void {
@@ -25,4 +26,5 @@ export function registerIpc(): void {
   registerOverlayIpc();
   registerWindowIpc();
   registerDataIpc();
+  registerUpdateIpc();
 }
