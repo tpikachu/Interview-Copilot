@@ -1,4 +1,4 @@
-import { BrowserWindow, screen } from 'electron';
+import { app, BrowserWindow, screen } from 'electron';
 import { join } from 'path';
 import { EVENTS } from '@shared/ipc';
 import { attachDiagnostics, loadRenderer } from './loadRenderer';
@@ -117,10 +117,14 @@ export async function openSelector(): Promise<void> {
       if (shown || !selectionWin || selectionWin.isDestroyed()) return;
       shown = true;
       selectionWin.show();
-      // Re-assert top + focus: when opened from a global shortcut the app isn't
-      // foreground, so a plain show() can leave the selector behind other windows.
+      // Force the selector to the foreground. When triggered after the overlay was
+      // active, BrainCue can lose the foreground token, so a plain show()/focus()
+      // leaves the selector BEHIND the user's active window — it looks "blank"
+      // (you see your desktop, can't drag). app.focus({steal:true}) defeats the
+      // Windows foreground lock; re-assert always-on-top + moveTop for good measure.
       selectionWin.setAlwaysOnTop(true, 'screen-saver');
       selectionWin.moveTop();
+      app.focus({ steal: true });
       selectionWin.focus();
       log.info('selector shown');
     };
