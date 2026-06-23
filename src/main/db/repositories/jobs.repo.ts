@@ -16,6 +16,7 @@ function toJob(r: Row): Job {
     companyUrl: r.companyUrl,
     companyResearch: r.companyResearch,
     parsedCompany: r.parsedCompany ? JSON.parse(r.parsedCompany) : null,
+    notes: r.notes,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };
@@ -44,6 +45,7 @@ export const jobsRepo = {
     jdUrl: string | null;
     jdText: string | null;
     companyUrl: string | null;
+    notes: string | null;
   }): Job {
     const id = crypto.randomUUID();
     db()
@@ -56,6 +58,7 @@ export const jobsRepo = {
         jdUrl: input.jdUrl,
         jdText: input.jdText,
         companyUrl: input.companyUrl,
+        notes: input.notes,
       })
       .run();
     return this.get(id)!;
@@ -70,6 +73,7 @@ export const jobsRepo = {
     if (patch.parsedJd !== undefined)
       set.parsedJd = patch.parsedJd ? JSON.stringify(patch.parsedJd) : null;
     if (patch.companyUrl !== undefined) set.companyUrl = patch.companyUrl;
+    if (patch.notes !== undefined) set.notes = patch.notes;
     if (patch.companyResearch !== undefined) set.companyResearch = patch.companyResearch;
     if (patch.parsedCompany !== undefined)
       set.parsedCompany = patch.parsedCompany ? JSON.stringify(patch.parsedCompany) : null;

@@ -66,6 +66,7 @@ export const jobs = sqliteTable(
     companyUrl: text('company_url'), // optional company website to research
     companyResearch: text('company_research'), // raw text scraped from the site
     parsedCompany: text('parsed_company'), // json — structured interview-relevant research
+    notes: text('notes'), // free-form client notes (shown when selecting + in the Cue Card)
     createdAt: integer('created_at').notNull().default(now),
     updatedAt: integer('updated_at').notNull().default(now),
   },

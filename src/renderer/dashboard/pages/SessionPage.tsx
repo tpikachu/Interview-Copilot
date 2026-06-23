@@ -43,7 +43,14 @@ export default function SessionPage() {
   const [profileId, setProfileId] = useState('');
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobId, setJobId] = useState('');
-  const [newJob, setNewJob] = useState({ title: '', company: '', jdUrl: '', jdText: '', companyUrl: '' });
+  const [newJob, setNewJob] = useState({
+    title: '',
+    company: '',
+    jdUrl: '',
+    jdText: '',
+    companyUrl: '',
+    notes: '',
+  });
   const [showNewJob, setShowNewJob] = useState(false);
   const [savingJob, setSavingJob] = useState(false);
   const [fetchingJd, setFetchingJd] = useState(false);
@@ -55,6 +62,11 @@ export default function SessionPage() {
   const [source, setSource] = useState<AudioSource>('system');
 
   const [ask, setAsk] = useState('');
+
+  // Inline editor for the selected client's notes.
+  const [notesDraft, setNotesDraft] = useState('');
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
 
   // The most recent past session for the selected profile+job, offered for resume.
   const [lastSession, setLastSession] = useState<SessionListItem | null>(null);
@@ -116,10 +128,11 @@ export default function SessionPage() {
         jdUrl: newJob.jdUrl.trim() || null,
         jdText: newJob.jdText.trim() || null,
         companyUrl: newJob.companyUrl.trim() || null,
+        notes: newJob.notes.trim() || null,
       });
       await refreshJobs(profileId);
       setJobId((res.job as Job).id);
-      setNewJob({ title: '', company: '', jdUrl: '', jdText: '', companyUrl: '' });
+      setNewJob({ title: '', company: '', jdUrl: '', jdText: '', companyUrl: '', notes: '' });
       setJdNotice(null);
       setShowNewJob(false);
       // Surface the outcome of the (best-effort) company research.
@@ -169,6 +182,24 @@ export default function SessionPage() {
     await api.jobs.delete(id);
     if (jobId === id) setJobId('');
     await refreshJobs(profileId);
+  };
+
+  // Load the selected client's notes into the editor whenever the selection changes.
+  useEffect(() => {
+    setNotesDraft(selectedJob?.notes ?? '');
+    setNotesSaved(false);
+  }, [jobId, selectedJob?.notes]);
+
+  const saveNotes = async () => {
+    if (!jobId) return;
+    setNotesSaving(true);
+    try {
+      await api.jobs.setNotes(jobId, notesDraft.trim() || null);
+      await refreshJobs(profileId);
+      setNotesSaved(true);
+    } finally {
+      setNotesSaving(false);
+    }
   };
 
   const start = async () => {
@@ -362,6 +393,37 @@ export default function SessionPage() {
                 </div>
               )}
 
+              {/* Notes for the selected client — visible here + in the Cue Card. */}
+              {jobId && !showNewJob && (
+                <div className="mt-3 rounded-lg border border-neutral-800 bg-neutral-950/40 p-3">
+                  <Field
+                    label="Notes about this client"
+                    hint="On hand while you pick this client and inside the Cue Card during the session."
+                  >
+                    <TextArea
+                      rows={3}
+                      value={notesDraft}
+                      onChange={(e) => {
+                        setNotesDraft(e.target.value);
+                        setNotesSaved(false);
+                      }}
+                      placeholder="e.g. Recruiter: Jane. Panel of 3. They care about system design. Remote."
+                    />
+                  </Field>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Button
+                      variant="default"
+                      onClick={saveNotes}
+                      loading={notesSaving}
+                      disabled={notesDraft.trim() === (selectedJob?.notes ?? '')}
+                    >
+                      Save notes
+                    </Button>
+                    {notesSaved && <span className="text-xs text-green-400">Saved ✓</span>}
+                  </div>
+                </div>
+              )}
+
               {showNewJob && (
                 <div className="mt-3 space-y-3 rounded-lg border border-neutral-800 p-3">
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -430,6 +492,17 @@ export default function SessionPage() {
                       value={newJob.companyUrl}
                       onChange={(e) => setNewJob((j) => ({ ...j, companyUrl: e.target.value }))}
                       placeholder="https://company.com"
+                    />
+                  </Field>
+                  <Field
+                    label="Notes about this client (optional)"
+                    hint="Anything you want on hand during the interview — recruiter name, panel, comp, quirks. Shown when you pick this client and in the Cue Card."
+                  >
+                    <TextArea
+                      rows={3}
+                      value={newJob.notes}
+                      onChange={(e) => setNewJob((j) => ({ ...j, notes: e.target.value }))}
+                      placeholder="e.g. Recruiter: Jane. Panel of 3. They care about system design. Remote."
                     />
                   </Field>
                   {saveNotice && (

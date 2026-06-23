@@ -31,11 +31,12 @@ export function registerJobsIpc(): void {
       jdUrl: z.string().nullable().default(null),
       jdText: z.string().nullable().default(null),
       companyUrl: z.string().nullable().default(null),
+      notes: z.string().nullable().default(null),
     }),
-    async ({ id, profileId, title, company, jdUrl, jdText, companyUrl }) => {
+    async ({ id, profileId, title, company, jdUrl, jdText, companyUrl, notes }) => {
       const job = id
-        ? jobsRepo.update(id, { title, company, jdUrl, jdText, companyUrl })
-        : jobsRepo.create({ profileId, title, company, jdUrl, jdText, companyUrl });
+        ? jobsRepo.update(id, { title, company, jdUrl, jdText, companyUrl, notes })
+        : jobsRepo.create({ profileId, title, company, jdUrl, jdText, companyUrl, notes });
 
       const hasKey = apiKeyStore.isPresent();
       if (hasKey && jdText?.trim()) {
@@ -73,6 +74,13 @@ export function registerJobsIpc(): void {
         companyError,
       };
     },
+  );
+
+  // Lightweight: update only the free-form client notes (no JD re-parse / re-index).
+  handle(
+    IPC.jobs.setNotes,
+    z.object({ id: z.string().min(1), notes: z.string().nullable() }),
+    ({ id, notes }) => jobsRepo.update(id, { notes }),
   );
 
   handle(IPC.jobs.delete, zId, ({ id }) => {

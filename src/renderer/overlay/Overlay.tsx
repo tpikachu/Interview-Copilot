@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
+import type { ClientInfo } from '@shared/ipc';
 import type { AnswerMetaEvent, ContextSentEvent } from '@shared/types';
 import { Markdown } from '../components/Markdown';
 import {
@@ -31,6 +32,8 @@ export default function Overlay() {
   const [live, setLive] = useState(false);
   const [showData, setShowData] = useState(false);
   const [privacy, setPrivacy] = useState(true);
+  const [clientInfo, setClientInfo] = useState<ClientInfo | null>(null);
+  const [showClient, setShowClient] = useState(false);
 
   const cleanup = useRef<(() => void)[]>([]);
   // Streamed tokens arrive far faster than the screen refreshes. Buffer them and
@@ -87,6 +90,10 @@ export default function Overlay() {
         setMode(s.mode);
       }),
       api.events.onPrivacyChanged((p) => setPrivacy((p as { enabled: boolean }).enabled)),
+      api.events.onClientInfo((p) => {
+        setClientInfo(p);
+        if (!p) setShowClient(false);
+      }),
     );
     void api.privacy.get().then((p) => setPrivacy((p as { enabled: boolean }).enabled));
     return () => {
@@ -193,11 +200,38 @@ export default function Overlay() {
           <Btn active={paused} onClick={togglePause} title={paused ? 'Resume AI' : 'Pause AI'}>
             {paused ? <PlayIcon className="h-3.5 w-3.5" /> : <PauseIcon className="h-3.5 w-3.5" />}
           </Btn>
+          {clientInfo && (
+            <Btn
+              active={showClient}
+              onClick={() => setShowClient((s) => !s)}
+              title="Client notes"
+            >
+              <span className="text-[12px] font-bold leading-none">ⓘ</span>
+            </Btn>
+          )}
           <Btn onClick={() => api.overlay.hide()} title="Hide Cue Card">
             <CloseIcon className="h-3.5 w-3.5" />
           </Btn>
         </div>
       </div>
+
+      {/* Client notes (toggled by the ⓘ button) */}
+      {showClient && clientInfo && (
+        <div
+          className="mb-2 max-h-32 overflow-auto rounded-lg border border-neutral-700 bg-neutral-950/80 p-2 text-[11px]"
+          style={noDrag}
+        >
+          <div className="mb-1 font-semibold text-neutral-200">
+            {clientInfo.company || clientInfo.title || 'Client'}
+            {clientInfo.company && clientInfo.title ? ` · ${clientInfo.title}` : ''}
+          </div>
+          {clientInfo.notes ? (
+            <p className="whitespace-pre-wrap leading-relaxed text-neutral-300">{clientInfo.notes}</p>
+          ) : (
+            <p className="text-neutral-500">No notes saved for this client.</p>
+          )}
+        </div>
+      )}
 
       {/* Opacity slider */}
       <div className="mb-2 flex items-center gap-2 text-[11px] text-neutral-500" style={noDrag}>

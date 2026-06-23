@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { EVENTS, IPC } from '@shared/ipc';
-import type { UpdateStatus } from '@shared/ipc';
+import type { ClientInfo, UpdateStatus } from '@shared/ipc';
 import type { Result } from '@shared/result';
 
 /** invoke + unwrap the Result envelope so renderer code uses normal try/catch. */
@@ -94,6 +94,7 @@ const api = {
       jdUrl: string | null;
       jdText: string | null;
       companyUrl: string | null;
+      notes: string | null;
     }) =>
       invoke<{
         job: unknown;
@@ -102,6 +103,7 @@ const api = {
         companyResearched: boolean;
         companyError: string | null;
       }>(IPC.jobs.save, input),
+    setNotes: (id: string, notes: string | null) => invoke(IPC.jobs.setNotes, { id, notes }),
     delete: (id: string) => invoke(IPC.jobs.delete, { id }),
   },
   notes: {
@@ -209,6 +211,7 @@ const api = {
     onSelectionReset: (cb: (p: { image: string }) => void) => on(EVENTS.selectionReset, cb),
     onUpdateStatus: (cb: (p: UpdateStatus) => void) => on(EVENTS.updateStatus, cb),
     onOverlayClickthrough: (cb: () => void) => on(EVENTS.overlayClickthrough, cb),
+    onClientInfo: (cb: (p: ClientInfo | null) => void) => on(EVENTS.clientInfo, cb),
   },
 };
 

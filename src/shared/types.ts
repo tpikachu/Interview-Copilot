@@ -110,6 +110,7 @@ export interface Job {
   companyUrl: string | null;
   companyResearch: string | null;
   parsedCompany: ParsedCompany | null;
+  notes: string | null; // free-form client notes (user-facing, shown in setup + Cue Card)
   createdAt: number;
   updatedAt: number;
 }
