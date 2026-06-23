@@ -8,6 +8,8 @@ import { registerSessionIpc } from './session.ipc';
 import { registerMockIpc } from './mock.ipc';
 import { registerCaptureIpc } from './capture.ipc';
 import { registerOverlayIpc } from './overlay.ipc';
+import { registerWindowIpc } from './window.ipc';
+import { registerDataIpc } from './data.ipc';
 
 /** Wire every IPC handler. Called once after the DB is initialized. */
 export function registerIpc(): void {
@@ -21,4 +23,6 @@ export function registerIpc(): void {
   registerMockIpc();
   registerCaptureIpc();
   registerOverlayIpc();
+  registerWindowIpc();
+  registerDataIpc();
 }

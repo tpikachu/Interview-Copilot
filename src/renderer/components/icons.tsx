@@ -224,3 +224,50 @@ export function HeadphonesIcon(p: IconProps) {
     </Svg>
   );
 }
+
+export function TrashIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M4 7h16" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+      <path d="M5 7l1 13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-13" />
+      <path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" />
+    </Svg>
+  );
+}
+
+export function RefreshIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+      <path d="M21 3v6h-6" />
+    </Svg>
+  );
+}
+
+/* Window-control icons for the custom titlebar (thin 24×24, 1.5 stroke). */
+export function WinMinimizeIcon(p: IconProps) {
+  return (
+    <Svg strokeWidth={1.5} {...p}>
+      <path d="M6 12h12" />
+    </Svg>
+  );
+}
+
+export function WinMaximizeIcon(p: IconProps) {
+  return (
+    <Svg strokeWidth={1.5} {...p}>
+      <rect x="6" y="6" width="12" height="12" rx="1.5" />
+    </Svg>
+  );
+}
+
+export function WinRestoreIcon(p: IconProps) {
+  return (
+    <Svg strokeWidth={1.5} {...p}>
+      <rect x="8" y="8" width="10" height="10" rx="1.5" />
+      <path d="M6 14V7a1 1 0 0 1 1-1h7" />
+    </Svg>
+  );
+}

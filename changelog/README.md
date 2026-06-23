@@ -6,6 +6,7 @@ the project uses [Semantic Versioning](https://semver.org/).
 
 | Version | Date | Highlights |
 | --- | --- | --- |
+| [0.3.0](./0.3.0.md) | 2026-06-23 | Custom titlebar, sidebar status panel, reset/wipe, exit hotkey |
 | [0.2.0](./0.2.0.md) | 2026-06-23 | System tray, configurable global shortcuts, animated logo |
 | [0.1.0](./0.1.0.md) | 2026-06 | Initial scaffold: live session, overlay, profiles, mock, reports |
 

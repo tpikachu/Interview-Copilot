@@ -46,6 +46,19 @@ const api = {
       invoke<{ shortcuts: Record<string, string> }>(IPC.settings.resetShortcuts),
     suspendShortcuts: () => invoke<{ suspended: true }>(IPC.settings.suspendShortcuts),
     resumeShortcuts: () => invoke<{ resumed: true }>(IPC.settings.resumeShortcuts),
+    resetApp: () =>
+      invoke<{ reset: boolean; settings: unknown }>(IPC.settings.resetApp),
+  },
+  data: {
+    stats: () =>
+      invoke<{ profiles: number; sessions: number; liveSessions: number }>(IPC.data.stats),
+    wipeAll: () => invoke<{ wiped: boolean }>(IPC.data.wipeAll),
+  },
+  window: {
+    minimize: () => invoke<{ ok: true }>(IPC.window.minimize),
+    maximizeToggle: () => invoke<{ maximized: boolean }>(IPC.window.maximizeToggle),
+    close: () => invoke<{ ok: true }>(IPC.window.close),
+    isMaximized: () => invoke<{ maximized: boolean }>(IPC.window.isMaximized),
   },
   profiles: {
     list: () => invoke(IPC.profiles.list),
@@ -182,6 +195,9 @@ const api = {
     onPrivacyChanged: (cb: (p: unknown) => void) => on(EVENTS.privacyChanged, cb),
     onOverlayVisibility: (cb: (p: unknown) => void) => on(EVENTS.overlayVisibility, cb),
     onNavigate: (cb: (p: unknown) => void) => on(EVENTS.navigate, cb),
+    onWindowMaximized: (cb: (p: { maximized: boolean }) => void) =>
+      on(EVENTS.windowMaximized, cb),
+    onDataChanged: (cb: (p: unknown) => void) => on(EVENTS.dataChanged, cb),
   },
 };
 

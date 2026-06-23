@@ -9,7 +9,8 @@ export type ShortcutAction =
   | 'capture:region'
   | 'session:toggle-pause'
   | 'privacy:toggle'
-  | 'overlay:toggle-clickthrough';
+  | 'overlay:toggle-clickthrough'
+  | 'app:quit';
 
 export interface ShortcutDef {
   id: ShortcutAction;
@@ -55,6 +56,12 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
     label: 'Overlay click-through',
     description: 'Let the mouse pass through the overlay.',
     default: 'CommandOrControl+Shift+\\',
+  },
+  {
+    id: 'app:quit',
+    label: 'Exit app',
+    description: 'Fully quit the app and stop all background processes at once.',
+    default: 'CommandOrControl+Shift+Q',
   },
 ];
 

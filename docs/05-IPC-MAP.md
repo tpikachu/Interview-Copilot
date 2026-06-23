@@ -15,7 +15,7 @@ validates input with zod via the `handle()` helper. Errors are returned as
 ## Channel naming
 `<domain>:<action>` — domains: `app`, `dialog`, `settings`, `profiles`,
 `documents`, `jobs`, `notes`, `rag`, `session`, `mock`, `capture`, `overlay`,
-`privacy`.
+`privacy`, `data`, `window`.
 
 ## invoke / handle (request → response)
 
@@ -34,6 +34,20 @@ validates input with zod via the `handle()` helper. Errors are returned as
 | `settings:clear-api-key` | — | `{ apiKeyPresent: false }` |
 | `settings:test-api-key` | — | `{ ok, model?, error? }` |
 | `settings:list-models` | — | `string[]` |
+| `settings:set-shortcuts` | `{ shortcuts }` | `{ shortcuts }` (persist + live re-register global shortcuts) |
+| `settings:reset-shortcuts` | — | `{ shortcuts }` (back to defaults) |
+| `settings:suspend-shortcuts` / `settings:resume-shortcuts` | — | `{ suspended }` / `{ resumed }` (while recording a binding in the UI) |
+| `settings:reset-app` | — | `{ reset, settings }` (factory-reset all settings; native confirm; keeps API key + data) |
+
+### data / window
+| Channel | Request | Response |
+|---|---|---|
+| `data:stats` | — | `{ profiles, sessions, liveSessions }` (sidebar status panel) |
+| `data:wipe-all` | — | `{ wiped }` (native confirm; clears API key + all profiles + all sessions) |
+| `window:minimize` | — | `{ ok: true }` (custom titlebar control) |
+| `window:maximize-toggle` | — | `{ maximized }` |
+| `window:close` | — | `{ ok: true }` (hides dashboard to tray) |
+| `window:is-maximized` | — | `{ maximized }` |
 
 ### profiles
 | Channel | Request | Response |
@@ -138,6 +152,11 @@ Channel constants live in `EVENTS` (`src/shared/ipc.ts`); payload types are in
 | `session:error` | `{ message }` | dashboard + overlay |
 | `overlay:apply-settings` | `{ opacity, fontSize, mode }` | overlay |
 | `shortcut:fired` | `{ action }` | dashboard |
+| `privacy:changed` | `{ enabled }` | dashboard + overlay (keeps every privacy indicator in sync) |
+| `overlay:visibility` | `{ visible }` | dashboard (reflects overlay show/hide) |
+| `app:navigate` | `{ path }` | dashboard (tray "Settings" routes here) |
+| `window:maximized` | `{ maximized }` | dashboard (titlebar maximize/restore icon) |
+| `data:changed` | `{ reason }` | dashboard (refresh status panel after a data wipe) |
 
 ## Result envelope
 ```ts

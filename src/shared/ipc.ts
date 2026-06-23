@@ -19,6 +19,17 @@ export const IPC = {
     resetShortcuts: 'settings:reset-shortcuts',
     suspendShortcuts: 'settings:suspend-shortcuts',
     resumeShortcuts: 'settings:resume-shortcuts',
+    resetApp: 'settings:reset-app',
+  },
+  data: {
+    stats: 'data:stats',
+    wipeAll: 'data:wipe-all',
+  },
+  window: {
+    minimize: 'window:minimize',
+    maximizeToggle: 'window:maximize-toggle',
+    close: 'window:close',
+    isMaximized: 'window:is-maximized',
   },
   profiles: {
     list: 'profiles:list',
@@ -108,6 +119,8 @@ export const EVENTS = {
   privacyChanged: 'privacy:changed',
   overlayVisibility: 'overlay:visibility',
   navigate: 'app:navigate',
+  windowMaximized: 'window:maximized',
+  dataChanged: 'data:changed',
 } as const;
 
 export type IpcEventChannel = (typeof EVENTS)[keyof typeof EVENTS];
