@@ -1,10 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { useProfileStore } from '../../store/useProfileStore';
 import { useMicCapture, type AudioSource } from '../../lib/useMicCapture';
 import { useSettingsStore } from '../../store/useSettingsStore';
-import type { AnswerStyle, InterviewType, Job, Session } from '@shared/types';
+import type {
+  AnswerStyle,
+  InterviewType,
+  Job,
+  Session,
+  SessionDetail,
+  SessionListItem,
+} from '@shared/types';
 import { Badge, Button, Card, Field, Page, Select, TextArea, TextInput } from '../../components/ui';
 import { Waveform } from '../../components/Waveform';
 import {
@@ -28,9 +35,15 @@ const interviewTypes: InterviewType[] = [
 const answerStyles: AnswerStyle[] = ['concise', 'detailed', 'star', 'technical', 'conversational'];
 
 interface Line {
+  id: number;
   speaker: string;
   text: string;
 }
+
+// Cap the number of transcript lines kept in the DOM. A long interview can produce
+// thousands of lines; rendering them all bogs the page down. The full transcript is
+// persisted and available in Reports — the live view just needs the recent tail.
+const MAX_LINES = 400;
 
 export default function SessionPage() {
   const { profiles, load } = useProfileStore();
@@ -58,6 +71,24 @@ export default function SessionPage() {
   const [ask, setAsk] = useState('');
   const unsub = useRef<(() => void)[]>([]);
 
+  // Append a transcript line with a stable id (so the rendered tail can be capped
+  // without React key churn).
+  const lineId = useRef(0);
+  const addLine = useCallback(
+    (speaker: string, text: string) =>
+      setTranscript((t) => [...t, { id: lineId.current++, speaker, text }]),
+    [],
+  );
+
+  // The most recent past session for the selected profile+job, offered for resume.
+  const [lastSession, setLastSession] = useState<SessionListItem | null>(null);
+  const [resuming, setResuming] = useState(false);
+
+  // Transcript auto-scroll: stick to the bottom for new lines, but pause when the
+  // user scrolls up to read history (a "jump to latest" button re-enables it).
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [atBottom, setAtBottom] = useState(true);
+
   useEffect(() => {
     void load();
     void loadSettings();
@@ -68,20 +99,31 @@ export default function SessionPage() {
       api.events.onTranscriptDelta((p) => {
         const d = p as { text: string; speaker: string; isFinal: boolean };
         if (d.isFinal) {
-          setTranscript((t) => [...t, { speaker: d.speaker, text: d.text }]);
+          addLine(d.speaker, d.text);
           setInterim('');
         } else setInterim((prev) => prev + d.text);
       }),
       api.events.onQuestionDetected((p) => {
         const d = p as { text: string };
-        setTranscript((t) => [...t, { speaker: 'detected question', text: d.text }]);
+        addLine('detected question', d.text);
       }),
       api.events.onSessionState((p) => setPaused((p as { paused: boolean }).paused)),
     );
     return () => unsub.current.forEach((u) => u());
-  }, []);
+  }, [addLine]);
 
   const refreshJobs = async (pid: string) => setJobs((await api.jobs.list(pid)) as Job[]);
+
+  // Find the most recent past session for this profile+job to offer "resume".
+  useEffect(() => {
+    setLastSession(null);
+    if (!profileId || !jobId) return;
+    void (async () => {
+      const all = (await api.session.list()) as SessionListItem[];
+      const match = all.find((s) => s.profileId === profileId && s.jobId === jobId);
+      setLastSession(match ?? null);
+    })();
+  }, [profileId, jobId]);
 
   useEffect(() => {
     setJobId('');
@@ -165,13 +207,40 @@ export default function SessionPage() {
     await refreshJobs(profileId);
   };
 
+  const goLive = async (s: Session, priorLines: Line[]) => {
+    setSession(s);
+    lineId.current = priorLines.length;
+    setTranscript(priorLines);
+    setInterim('');
+    setAtBottom(true);
+    await mic.start(s.id, source);
+  };
+
   const start = async () => {
     if (!canStart) return;
     const s = (await api.session.start(profileId, interviewType, answerStyle, jobId)) as Session;
-    setSession(s);
-    setTranscript([]);
-    setInterim('');
-    await mic.start(s.id, source);
+    await goLive(s, []);
+  };
+
+  // Continue the most recent session for this job instead of creating a new row —
+  // keeps Reports tidy and lets the AI build on the previous round's context.
+  const resume = async () => {
+    if (!lastSession) return;
+    setResuming(true);
+    try {
+      const [s, detail] = await Promise.all([
+        api.session.resume(lastSession.id, interviewType, answerStyle) as Promise<Session>,
+        api.session.get(lastSession.id) as Promise<SessionDetail>,
+      ]);
+      const prior: Line[] = detail.transcript.map((c, i) => ({
+        id: i,
+        speaker: c.speaker,
+        text: c.text,
+      }));
+      await goLive(s, prior);
+    } finally {
+      setResuming(false);
+    }
   };
 
   const stop = async () => {
@@ -185,8 +254,20 @@ export default function SessionPage() {
   const sendAsk = async () => {
     if (!session || !ask) return;
     await api.session.ask(session.id, ask);
-    setTranscript((t) => [...t, { speaker: 'you (manual)', text: ask }]);
+    addLine('you (manual)', ask);
     setAsk('');
+  };
+
+  // Keep the transcript pinned to the newest line, unless the user scrolled up.
+  useEffect(() => {
+    if (atBottom && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [transcript, interim, atBottom]);
+
+  const onTranscriptScroll = () => {
+    const el = scrollRef.current;
+    if (el) setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 40);
   };
 
   return (
@@ -453,20 +534,38 @@ export default function SessionPage() {
                   </Select>
                 </Field>
               </div>
-              <Button variant="success" className="mt-4" onClick={start} disabled={!canStart}>
-                <PlayIcon /> Start session
-              </Button>
-              {selectedJob && (
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                {lastSession && (
+                  <Button variant="success" onClick={resume} disabled={!canStart} loading={resuming}>
+                    <PlayIcon /> Resume last session
+                  </Button>
+                )}
+                <Button
+                  variant={lastSession ? 'default' : 'success'}
+                  onClick={start}
+                  disabled={!canStart || resuming}
+                >
+                  {lastSession ? <><PlusIcon /> New session</> : <><PlayIcon /> Start session</>}
+                </Button>
+              </div>
+              {lastSession ? (
                 <p className="mt-2 text-xs text-neutral-500">
-                  Answers will be grounded in your resume + “{selectedJob.title}”.
+                  Resuming continues your previous session for this interview (newest first) — keeps
+                  Reports tidy and lets answers build on the last round.
                 </p>
+              ) : (
+                selectedJob && (
+                  <p className="mt-2 text-xs text-neutral-500">
+                    Answers will be grounded in your resume + “{selectedJob.title}”.
+                  </p>
+                )
               )}
             </Card>
           )}
         </div>
       ) : (
         <>
-          <Card className="mb-5">
+          <Card className="sticky top-0 z-10 mb-5 bg-neutral-900 ring-1 ring-white/5">
             <div className="flex flex-wrap items-center gap-3">
               <Badge tone={mic.speaking ? 'green' : mic.recording ? 'blue' : 'neutral'}>
                 {mic.speaking ? '● speaking' : mic.recording ? 'listening…' : 'live'}
@@ -501,24 +600,50 @@ export default function SessionPage() {
           </div>
 
           <Card className="min-h-[220px]">
-            <h3 className="mb-3 text-sm font-medium text-neutral-400">Transcript</h3>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-medium text-neutral-400">Transcript</h3>
+              {transcript.length > MAX_LINES && (
+                <span className="text-xs text-neutral-600">
+                  showing last {MAX_LINES} of {transcript.length}
+                </span>
+              )}
+            </div>
             {transcript.length === 0 && !interim ? (
               <p className="text-sm text-neutral-500">
                 Transcript appears here as audio is transcribed. Answers stream to the Cue Card.
               </p>
             ) : (
-              <div className="space-y-1.5 text-sm">
-                {transcript.map((l, i) => (
-                  <p key={i}>
-                    <span className="text-neutral-500">{l.speaker}: </span>
-                    {l.text}
-                  </p>
-                ))}
-                {interim && (
-                  <p className="italic text-neutral-500">
-                    interviewer: {interim}
-                    <span className="ml-0.5 animate-pulse">▋</span>
-                  </p>
+              <div className="relative">
+                <div
+                  ref={scrollRef}
+                  onScroll={onTranscriptScroll}
+                  className="max-h-[52vh] space-y-1.5 overflow-y-auto pr-1 text-sm"
+                >
+                  {transcript.slice(-MAX_LINES).map((l) => (
+                    <p key={l.id}>
+                      <span className="text-neutral-500">{l.speaker}: </span>
+                      {l.text}
+                    </p>
+                  ))}
+                  {interim && (
+                    <p className="italic text-neutral-500">
+                      interviewer: {interim}
+                      <span className="ml-0.5 animate-pulse">▋</span>
+                    </p>
+                  )}
+                </div>
+                {!atBottom && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const el = scrollRef.current;
+                      if (el) el.scrollTop = el.scrollHeight;
+                      setAtBottom(true);
+                    }}
+                    className="absolute bottom-2 right-3 rounded-full bg-indigo-600 px-3 py-1 text-xs font-medium text-white shadow-lg hover:bg-indigo-500"
+                  >
+                    ↓ Jump to latest
+                  </button>
                 )}
               </div>
             )}

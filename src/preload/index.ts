@@ -117,6 +117,8 @@ const api = {
       answerStyle: string,
       jobId: string | null = null,
     ) => invoke(IPC.session.start, { profileId, interviewType, answerStyle, jobId }),
+    resume: (sessionId: string, interviewType: string, answerStyle: string) =>
+      invoke(IPC.session.resume, { sessionId, interviewType, answerStyle }),
     stop: (sessionId: string) => invoke(IPC.session.stop, { sessionId }),
     togglePause: (sessionId: string) => invoke(IPC.session.togglePause, { sessionId }),
     togglePauseActive: () =>

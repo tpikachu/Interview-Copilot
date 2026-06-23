@@ -61,6 +61,7 @@ export const IPC = {
   },
   session: {
     start: 'session:start',
+    resume: 'session:resume',
     stop: 'session:stop',
     togglePause: 'session:toggle-pause',
     togglePauseActive: 'session:toggle-pause-active',

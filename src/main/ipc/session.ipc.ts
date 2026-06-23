@@ -30,6 +30,17 @@ export function registerSessionIpc(): void {
       sessionManager.start(profileId, t, s, jobId),
   );
 
+  handle(
+    IPC.session.resume,
+    z.object({
+      sessionId: z.string().min(1),
+      interviewType,
+      answerStyle: answerStyle.default('concise'),
+    }),
+    ({ sessionId, interviewType: t, answerStyle: s }) =>
+      sessionManager.resume(sessionId, t, s),
+  );
+
   handle(IPC.session.stop, z.object({ sessionId: z.string().min(1) }), ({ sessionId }) =>
     sessionManager.stop(sessionId),
   );
