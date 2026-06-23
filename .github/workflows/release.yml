@@ -1,0 +1,74 @@
+name: Release
+
+# Build the desktop installers and publish them to a GitHub Release.
+#
+# Trigger by pushing a version tag that matches package.json, e.g.:
+#   npm version 0.5.0 --no-git-tag-version   # or edit "version" by hand
+#   git commit -am "release: v0.5.0"
+#   git tag v0.5.0 && git push origin v0.5.0
+#
+# electron-builder reads the version from package.json and uploads to a DRAFT
+# release named v<version> (publish.provider=github in electron-builder.yml).
+# Review the draft in the GitHub "Releases" tab, then publish it.
+#
+# You can also run it manually (Actions tab -> Release -> Run workflow) to build
+# installers WITHOUT publishing — they're attached as downloadable artifacts.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write # create/update GitHub Releases
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false # one OS failing must not block the others
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # postinstall runs `electron-builder install-app-deps`, which rebuilds the
+      # better-sqlite3 native module against Electron for this runner's platform.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck + bundle
+        run: npm run build
+
+      # electron-builder targets the host OS by default: nsis (.exe) on Windows,
+      # dmg on macOS, AppImage on Linux. On a tag push it publishes the draft
+      # release; on manual runs it only packages (artifacts uploaded below).
+      - name: Package${{ startsWith(github.ref, 'refs/tags/v') && ' + publish' || '' }}
+        run: npx --no-install electron-builder --publish ${{ startsWith(github.ref, 'refs/tags/v') && 'always' || 'never' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload installers as workflow artifacts
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.os }}
+          if-no-files-found: ignore
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.AppImage
+            release/*.zip
+            release/*.blockmap
+            release/latest*.yml

@@ -8,6 +8,18 @@ resume / job description / notes (local RAG).
 > Use this only where AI assistance is permitted. Your data stays on your
 > machine; only the retrieved context + question is sent to OpenAI.
 
+## Download
+
+Grab the latest installer from the
+[**Releases**](https://github.com/tpikachu/Interview-Copilot/releases) page:
+
+- **Windows** — `.exe` (NSIS installer)
+- **macOS** — `.dmg`
+- **Linux** — `.AppImage`
+
+Builds are currently **unsigned**, so the OS may warn on first launch — Windows
+SmartScreen ("More info → Run anyway"), macOS Gatekeeper (right-click → Open).
+
 ## System requirements
 
 BrainCue Copilot is a local desktop app that streams live audio to OpenAI for
@@ -74,6 +86,22 @@ In production you set the key in **Settings** (encrypted via OS secure storage).
 | `npm run build` | typecheck + bundle |
 | `npm run icon` | regenerate app icons from `resources/icon.svg` |
 | `npm run package` / `package:win` / `package:mac` | build installer via electron-builder (auto-cleans `release/` + kills running app first) |
+
+## Releasing
+
+Installers are built and published by GitHub Actions
+([`.github/workflows/release.yml`](.github/workflows/release.yml)) — Windows,
+macOS, and Linux in parallel.
+
+1. Bump `version` in `package.json` (and add a `changelog/` entry).
+2. Commit, then tag it to match: `git tag v0.5.0 && git push origin v0.5.0`
+   (the tag **must** equal `v` + the `package.json` version).
+3. The workflow builds each platform and uploads to a **draft** GitHub Release
+   named `v0.5.0`. Review it in the Releases tab and click **Publish**.
+
+To produce installers **without** publishing (e.g. to test a build), run the
+workflow manually from the **Actions** tab — they're attached as downloadable
+artifacts instead.
 
 ## Security invariants
 - The OpenAI key lives **only** in the main process; the renderer learns a

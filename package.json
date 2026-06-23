@@ -2,9 +2,13 @@
   "name": "ai-interview-assistant",
   "version": "0.4.1",
   "description": "BrainCue Copilot — desktop AI interview copilot (Electron + React + OpenAI). Local-first data, BYO OpenAI key.",
-  "author": "",
+  "author": "tpikachu",
   "license": "MIT",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tpikachu/Interview-Copilot.git"
+  },
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "node scripts/run-electron-vite.mjs dev",
