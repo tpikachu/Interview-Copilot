@@ -82,4 +82,14 @@ export const profilesRepo = {
     // FK cascade removes documents, notes, chunks, embeddings, sessions, etc.
     db().delete(schema.profiles).where(eq(schema.profiles.id, id)).run();
   },
+
+  count(): number {
+    return db().select().from(schema.profiles).all().length;
+  },
+
+  /** Delete every profile. FK cascade wipes all dependent rows (documents,
+   *  notes, jobs, chunks, embeddings, sessions and their children). */
+  deleteAll(): void {
+    db().delete(schema.profiles).run();
+  },
 };

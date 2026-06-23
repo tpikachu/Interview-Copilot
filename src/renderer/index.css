@@ -71,6 +71,15 @@
   }
 }
 
+/* Custom titlebar drag regions (frameless dashboard window). The bar is
+   draggable; interactive controls opt out so clicks aren't swallowed. */
+.app-drag {
+  -webkit-app-region: drag;
+}
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
 html,
 body,
 #root {

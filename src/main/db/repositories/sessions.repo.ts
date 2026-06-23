@@ -177,4 +177,14 @@ export const sessionsRepo = {
   delete(id: string): void {
     db().delete(schema.sessions).where(eq(schema.sessions.id, id)).run();
   },
+
+  count(): { total: number; live: number } {
+    const rows = db().select({ status: schema.sessions.status }).from(schema.sessions).all();
+    return { total: rows.length, live: rows.filter((r) => r.status === 'live').length };
+  },
+
+  /** Delete every session (and its cascaded transcript/questions/answers/report). */
+  deleteAll(): void {
+    db().delete(schema.sessions).run();
+  },
 };

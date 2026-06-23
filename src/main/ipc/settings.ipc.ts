@@ -17,6 +17,9 @@ import {
 import { SHORTCUT_DEFAULTS } from '@shared/shortcuts';
 import { broadcast } from './broadcast';
 import { EVENTS } from '@shared/ipc';
+import { confirmDestructive } from './data.ipc';
+import { applyContentProtectionToAll, getPrivacy } from '../services/session/privacy';
+import { appEvents, APP_EVENT } from '../appEvents';
 
 const defaultOverlay: OverlayPrefs = { opacity: 0.95, fontSize: 14, mode: 'compact' };
 
@@ -100,5 +103,30 @@ export function registerSettingsIpc(): void {
   handle(IPC.settings.resumeShortcuts, NoInput, () => {
     registerGlobalShortcuts();
     return { resumed: true as const };
+  });
+
+  // Factory-reset every setting (models, overlay, privacy, shortcuts, consent,
+  // tour) to defaults. Keeps the API key and user data (cleared via data:wipe-all).
+  handle(IPC.settings.resetApp, NoInput, async () => {
+    const ok = await confirmDestructive({
+      message: 'Reset all settings to defaults?',
+      detail:
+        'Models, overlay, privacy, keyboard shortcuts, and other preferences return to factory defaults. Your API key, profiles, and sessions are kept.',
+      confirmLabel: 'Reset settings',
+    });
+    if (!ok) return { reset: false as const, settings: readSettings() };
+
+    settingsRepo.resetApp();
+
+    // Re-apply the now-default state live: shortcuts back to defaults, privacy
+    // back to its default (ON), and the overlay back to default prefs.
+    unregisterGlobalShortcuts();
+    registerGlobalShortcuts();
+    applyContentProtectionToAll(getPrivacy());
+    broadcast(EVENTS.privacyChanged, { enabled: getPrivacy() });
+    appEvents.emit(APP_EVENT.privacyChanged, getPrivacy());
+    broadcast(EVENTS.overlayApplySettings, defaultOverlay, ['overlay']);
+
+    return { reset: true as const, settings: readSettings() };
   });
 }

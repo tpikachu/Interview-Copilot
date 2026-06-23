@@ -9,6 +9,7 @@ import { togglePrivacy } from './services/session/privacy';
 import { sessionManager } from './services/session/sessionManager';
 import { openSelector } from './windows/selectionWindow';
 import { quickSolveFromClipboard } from './services/capture/codingMode';
+import { quitApp } from './quit';
 import { log } from './services/security/logger';
 
 let clickthrough = false;
@@ -51,6 +52,11 @@ function handle(action: ShortcutAction): void {
       break;
     case 'capture:region':
       void openSelector();
+      break;
+    case 'app:quit':
+      // Full quit -> before-quit -> performShutdown tears down the socket,
+      // shortcuts, tray and all windows, so nothing is left running.
+      quitApp();
       break;
   }
 }

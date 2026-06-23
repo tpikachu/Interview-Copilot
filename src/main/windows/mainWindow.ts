@@ -3,6 +3,7 @@ import { join } from 'path';
 import { EVENTS } from '@shared/ipc';
 import { attachDiagnostics, loadRenderer } from './loadRenderer';
 import { applyPrivacyToWindow } from '../services/session/privacy';
+import { broadcastMaximizeState } from '../ipc/window.ipc';
 import { isQuitting } from '../quit';
 import { log } from '../services/security/logger';
 
@@ -16,6 +17,11 @@ export function createMainWindow(): BrowserWindow {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
+    // Hide the OS titlebar but KEEP the native resizable frame/shadow/snapping
+    // (unlike frame:false). The dashboard draws its own titlebar (Titlebar.tsx)
+    // with custom min/maximize/close controls and a drag region.
+    titleBarStyle: 'hidden',
+    backgroundColor: '#0a0a0a',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -47,6 +53,9 @@ export function createMainWindow(): BrowserWindow {
   setTimeout(() => reveal('fallback-timeout'), 5000);
 
   win.on('show', () => applyPrivacyToWindow(win!));
+
+  // Keep the custom titlebar's maximize/restore icon in sync with the real state.
+  broadcastMaximizeState(win);
 
   // Open external links in the OS browser, never in-app.
   win.webContents.setWindowOpenHandler(({ url }) => {

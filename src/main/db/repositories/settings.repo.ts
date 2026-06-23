@@ -33,6 +33,13 @@ export const settingsRepo = {
   setJson(key: string, value: unknown): void {
     this.set(key, JSON.stringify(value));
   },
+
+  /** Factory-reset app settings: clear every non-secret setting key so they fall
+   *  back to their built-in defaults. Deliberately KEEPS the encrypted API key
+   *  (that's "user data", cleared separately by the data wipe). */
+  resetApp(): void {
+    for (const key of APP_SETTING_KEYS) this.delete(key);
+  },
 };
 
 export const SETTINGS_KEYS = {
@@ -45,3 +52,13 @@ export const SETTINGS_KEYS = {
   tourDone: 'tour_done',
   shortcuts: 'shortcuts',
 } as const;
+
+/** Non-secret settings cleared by a factory reset (everything except the API key). */
+const APP_SETTING_KEYS: string[] = [
+  SETTINGS_KEYS.models,
+  SETTINGS_KEYS.overlayPrefs,
+  SETTINGS_KEYS.privacyMode,
+  SETTINGS_KEYS.dataConsentAck,
+  SETTINGS_KEYS.tourDone,
+  SETTINGS_KEYS.shortcuts,
+];

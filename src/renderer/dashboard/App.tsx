@@ -11,7 +11,8 @@ import MockPage from './pages/MockPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 import WhatsNewPage from './pages/WhatsNewPage';
-import { APP_VERSION } from './changelog';
+import { Titlebar } from './Titlebar';
+import { SidebarStatus } from './SidebarStatus';
 import {
   MockIcon,
   OverlayIcon,
@@ -73,7 +74,9 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-b from-neutral-950 to-neutral-900 text-neutral-100">
+    <div className="flex h-screen flex-col bg-gradient-to-b from-neutral-950 to-neutral-900 text-neutral-100">
+      <Titlebar />
+      <div className="flex min-h-0 flex-1">
       <aside className="flex w-60 shrink-0 flex-col border-r border-white/5 bg-neutral-950/60 p-4">
         <div className="mb-8 flex items-center gap-2.5 px-1">
           <Logo className="h-9 w-9" />
@@ -123,20 +126,7 @@ export default function App() {
           {overlayVisible ? 'Hide overlay' : 'Show overlay'}
         </button>
 
-        <p className="mt-auto px-2 text-xs leading-relaxed text-neutral-600">
-          Use only where AI assistance is allowed. Data stays local; only retrieved
-          context is sent to OpenAI.
-        </p>
-        <NavLink
-          to="/whats-new"
-          className={({ isActive }) =>
-            `mt-2 rounded-md px-2 py-1 text-xs transition-colors ${
-              isActive ? 'text-indigo-300' : 'text-neutral-600 hover:text-neutral-400'
-            }`
-          }
-        >
-          v{APP_VERSION} · What's new
-        </NavLink>
+        <SidebarStatus />
       </aside>
 
       <main className="flex-1 overflow-hidden">
@@ -151,6 +141,7 @@ export default function App() {
           <Route path="/whats-new" element={<WhatsNewPage />} />
         </Routes>
       </main>
+      </div>
 
       {running && <Tour steps={TOUR_STEPS} onClose={finishTour} />}
     </div>

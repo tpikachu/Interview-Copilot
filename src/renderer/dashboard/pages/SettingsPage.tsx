@@ -6,7 +6,7 @@ import { api } from '../../lib/api';
 import type { AppSettings } from '@shared/types';
 import { SHORTCUT_DEFS } from '@shared/shortcuts';
 import { Badge, Button, Card, Field, Page, Switch, TextInput } from '../../components/ui';
-import { EyeIcon, EyeOffIcon, PlayIcon } from '../../components/icons';
+import { EyeIcon, EyeOffIcon, PlayIcon, RefreshIcon, TrashIcon } from '../../components/icons';
 
 const MODEL_FIELDS: { key: string; label: string; hint: string; suggest: string[] }[] = [
   {
@@ -189,7 +189,85 @@ export default function SettingsPage() {
           </Button>
         </div>
       </Card>
+
+      <DangerZoneCard onChanged={load} />
     </Page>
+  );
+}
+
+/** Destructive actions. Both are confirmed by a native dialog in the main process,
+ *  so nothing is wiped without explicit consent. */
+function DangerZoneCard({ onChanged }: { onChanged: () => Promise<void> }) {
+  const [busy, setBusy] = useState<'reset' | 'wipe' | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const resetSettings = async () => {
+    setBusy('reset');
+    setStatus(null);
+    try {
+      const { reset } = await api.settings.resetApp();
+      await onChanged();
+      setStatus(reset ? 'All settings were reset to defaults.' : null);
+    } catch (e) {
+      setStatus(`Error: ${(e as Error).message}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const wipeData = async () => {
+    setBusy('wipe');
+    setStatus(null);
+    try {
+      const { wiped } = await api.data.wipeAll();
+      await onChanged();
+      setStatus(wiped ? 'All user data was removed (API key, profiles, sessions).' : null);
+    } catch (e) {
+      setStatus(`Error: ${(e as Error).message}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Card className="mt-5 border-red-900/40">
+      <div className="mb-1 flex items-center justify-between">
+        <h3 className="font-medium text-red-300">Danger zone</h3>
+        <Badge tone="amber">irreversible</Badge>
+      </div>
+      <p className="mb-4 text-sm text-neutral-400">
+        These actions cannot be undone. Each asks for confirmation first.
+      </p>
+
+      <div className="divide-y divide-white/5">
+        <div className="flex items-center justify-between gap-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm text-neutral-200">Reset app settings</p>
+            <p className="text-xs text-neutral-500">
+              Restore models, overlay, privacy, and shortcuts to factory defaults. Keeps your API key
+              and data.
+            </p>
+          </div>
+          <Button variant="default" onClick={resetSettings} loading={busy === 'reset'} disabled={!!busy}>
+            <RefreshIcon className="h-4 w-4" /> Reset
+          </Button>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm text-neutral-200">Remove all user data</p>
+            <p className="text-xs text-neutral-500">
+              Delete the OpenAI API key, every profile, and all interview sessions and reports.
+            </p>
+          </div>
+          <Button variant="danger" onClick={wipeData} loading={busy === 'wipe'} disabled={!!busy}>
+            <TrashIcon className="h-4 w-4" /> Delete all
+          </Button>
+        </div>
+      </div>
+
+      {status && <p className="mt-3 text-sm text-neutral-300">{status}</p>}
+    </Card>
   );
 }
 
