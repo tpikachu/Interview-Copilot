@@ -1,4 +1,4 @@
-# Product Requirements Document — AI Interview Assistant
+# Product Requirements Document — BrainCue Copilot
 
 > Status: MVP scope. Last updated 2026-06-22.
 

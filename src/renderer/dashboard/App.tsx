@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useSettingsStore } from '../store/useSettingsStore';
@@ -15,7 +15,6 @@ import { Titlebar } from './Titlebar';
 import { SidebarStatus } from './SidebarStatus';
 import {
   MockIcon,
-  OverlayIcon,
   ReportIcon,
   SettingsIcon,
   MicIcon,
@@ -32,7 +31,6 @@ const navItems = [
 ];
 
 export default function App() {
-  const [overlayVisible, setOverlayVisible] = useState(false);
   const { settings, load: loadSettings } = useSettingsStore();
   const { running, start, stop } = useTourStore();
   const navigate = useNavigate();
@@ -41,19 +39,9 @@ export default function App() {
     void loadSettings();
   }, [loadSettings]);
 
-  // Reflect the overlay's real visibility (it can be toggled from the hotkey,
-  // the tray, the overlay's own close button, or a session ending), and let the
-  // tray "Settings" item route the dashboard here.
+  // Let the tray "Settings" item route the dashboard here.
   useEffect(() => {
-    void api.overlay.isVisible().then((s) => setOverlayVisible((s as { visible: boolean }).visible));
-    const offVis = api.events.onOverlayVisibility((p) =>
-      setOverlayVisible((p as { visible: boolean }).visible),
-    );
-    const offNav = api.events.onNavigate((p) => navigate((p as { path: string }).path));
-    return () => {
-      offVis();
-      offNav();
-    };
+    return api.events.onNavigate((p) => navigate((p as { path: string }).path));
   }, [navigate]);
 
   // Auto-launch the tour once for a brand-new user (tourDone is persisted, so
@@ -68,11 +56,6 @@ export default function App() {
     await loadSettings();
   };
 
-  const toggleOverlay = async () => {
-    const { visible } = (await api.overlay.toggle()) as { visible: boolean };
-    setOverlayVisible(visible);
-  };
-
   return (
     <div className="flex h-screen flex-col bg-gradient-to-b from-neutral-950 to-neutral-900 text-neutral-100">
       <Titlebar />
@@ -81,8 +64,8 @@ export default function App() {
         <div className="mb-8 flex items-center gap-2.5 px-1">
           <Logo className="h-9 w-9" />
           <div className="leading-tight">
-            <h1 className="text-sm font-semibold">Interview</h1>
-            <p className="text-xs text-neutral-500">Assistant</p>
+            <h1 className="text-sm font-semibold">BrainCue</h1>
+            <p className="text-xs text-neutral-500">Copilot</p>
           </div>
         </div>
         <nav className="space-y-1">
@@ -111,20 +94,6 @@ export default function App() {
             </NavLink>
           ))}
         </nav>
-
-        <button
-          onClick={toggleOverlay}
-          data-tour="overlay-toggle"
-          title="Show/hide the floating answer overlay (Ctrl+Shift+Space)"
-          className={`mt-4 flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-            overlayVisible
-              ? 'bg-indigo-500/10 text-white'
-              : 'text-neutral-400 hover:bg-white/5 hover:text-neutral-200'
-          }`}
-        >
-          <OverlayIcon className="h-[18px] w-[18px]" />
-          {overlayVisible ? 'Hide overlay' : 'Show overlay'}
-        </button>
 
         <SidebarStatus />
       </aside>

@@ -62,8 +62,8 @@ export async function confirmQuit(): Promise<void> {
     defaultId: 0,
     cancelId: 1,
     noLink: true,
-    title: 'Exit AI Interview Assistant',
-    message: 'Exit AI Interview Assistant?',
+    title: 'Exit BrainCue Copilot',
+    message: 'Exit BrainCue Copilot?',
     detail: 'The app will fully close and stop running in the background tray.',
   };
   const { response } = parent

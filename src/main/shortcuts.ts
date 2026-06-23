@@ -5,7 +5,7 @@ import {
 } from '@shared/shortcuts';
 import { SETTINGS_KEYS, settingsRepo } from './db/repositories/settings.repo';
 import { createOverlayWindow, getOverlayWindow } from './windows/overlayWindow';
-import { togglePrivacy } from './services/session/privacy';
+import { togglePrivacyGuarded } from './services/session/privacy';
 import { sessionManager } from './services/session/sessionManager';
 import { openSelector } from './windows/selectionWindow';
 import { quickSolveFromClipboard } from './services/capture/codingMode';
@@ -42,7 +42,7 @@ function handle(action: ShortcutAction): void {
       break;
     }
     case 'privacy:toggle':
-      togglePrivacy();
+      void togglePrivacyGuarded();
       break;
     case 'session:toggle-pause':
       sessionManager.togglePauseActive();

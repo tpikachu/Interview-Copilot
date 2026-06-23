@@ -133,7 +133,7 @@ export default function Overlay() {
               paused ? 'bg-amber-400' : streaming ? 'animate-pulse bg-green-400' : 'bg-neutral-600'
             }`}
           />
-          AI Assistant
+          BrainCue
           {live && !paused && !streaming && <EqualizerBars />}
         </span>
         <div className="flex items-center gap-0.5" style={noDrag}>
@@ -165,7 +165,7 @@ export default function Overlay() {
           <Btn active={paused} onClick={togglePause} title={paused ? 'Resume AI' : 'Pause AI'}>
             {paused ? <PlayIcon className="h-3.5 w-3.5" /> : <PauseIcon className="h-3.5 w-3.5" />}
           </Btn>
-          <Btn onClick={() => api.overlay.hide()} title="Hide overlay">
+          <Btn onClick={() => api.overlay.hide()} title="Hide Cue Card">
             <CloseIcon className="h-3.5 w-3.5" />
           </Btn>
         </div>

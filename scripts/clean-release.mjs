@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 
-const PRODUCT_NAME = 'AI Interview Assistant'
+const PRODUCT_NAME = 'BrainCue Copilot'
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const releaseDir = resolve(root, 'release')
 
