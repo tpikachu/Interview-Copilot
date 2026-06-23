@@ -37,30 +37,40 @@ export class RealtimeTranscriber {
       return;
     }
     this.closing = false;
+    // GA Realtime API: the beta shape was retired (the `OpenAI-Beta: realtime=v1`
+    // header + `transcription_session.update` event), which is why the server now
+    // rejects beta connections with `beta_api_shape_disabled`.
     this.ws = new WebSocket('wss://api.openai.com/v1/realtime?intent=transcription', {
       headers: {
         Authorization: `Bearer ${key}`,
-        'OpenAI-Beta': 'realtime=v1',
       },
     });
 
     this.ws.on('open', () => {
+      // GA transcription-session config: nested under session.audio.input. The
+      // server response event names (…input_audio_transcription.delta/.completed)
+      // are unchanged, so the parser in realtimeEvents.ts still applies.
       this.send({
-        type: 'transcription_session.update',
+        type: 'session.update',
         session: {
-          input_audio_format: 'pcm16',
-          input_audio_transcription: {
-            model: model('transcription'),
-            language: this.language,
+          type: 'transcription',
+          audio: {
+            input: {
+              format: { type: 'audio/pcm', rate: 24000 },
+              transcription: {
+                model: model('transcription'),
+                language: this.language,
+              },
+              // Server VAD finds turn boundaries; tuned for conversational speech.
+              turn_detection: {
+                type: 'server_vad',
+                threshold: 0.5,
+                prefix_padding_ms: 300,
+                silence_duration_ms: 600,
+              },
+              noise_reduction: { type: 'near_field' },
+            },
           },
-          // Server VAD finds turn boundaries; tuned for conversational speech.
-          turn_detection: {
-            type: 'server_vad',
-            threshold: 0.5,
-            prefix_padding_ms: 300,
-            silence_duration_ms: 600,
-          },
-          input_audio_noise_reduction: { type: 'near_field' },
         },
       });
       this.ready = true;
