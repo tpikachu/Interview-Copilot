@@ -47,6 +47,12 @@ const MODEL_FIELDS: { key: string; label: string; hint: string; suggest: string[
     hint: 'Transcribes microphone audio.',
     suggest: ['gpt-4o-transcribe', 'gpt-4o-mini-transcribe', 'whisper-1'],
   },
+  {
+    key: 'coding',
+    label: 'Coding solver',
+    hint: 'Solves coding problems from clipboard text or a screenshot (reasoning model recommended).',
+    suggest: ['gpt-5-mini', 'gpt-5', 'gpt-4.1', 'o4-mini'],
+  },
 ];
 
 export default function SettingsPage() {

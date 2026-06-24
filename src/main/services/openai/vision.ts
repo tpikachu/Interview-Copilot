@@ -1,14 +1,15 @@
 import { openai } from './client';
-import { model } from './models';
+import { model, reasoningParam } from './models';
 import { CODING_RULES } from './codingPrompt';
 import type { AnswerEvent } from './answer';
 
 const SYSTEM = `You are shown a screenshot containing a coding/technical interview problem (and possibly code). Read it carefully, transcribe the problem accurately, then solve it.\n${CODING_RULES}`;
 
 /**
- * Solve a problem directly from an image using an OpenAI vision model. Replaces
- * local Tesseract OCR for the region selector — runs over the network so it
- * never blocks the main process, and reads code/diagrams far more reliably.
+ * Solve a problem directly from an image using the 'coding' model (multimodal,
+ * a reasoning model by default). Replaces local Tesseract OCR for the region
+ * selector — runs over the network so it never blocks the main process, reads
+ * code/diagrams far more reliably, and shares the same solver as the text path.
  */
 export async function* solveFromImage(
   dataUrl: string,
@@ -16,7 +17,8 @@ export async function* solveFromImage(
 ): AsyncGenerator<AnswerEvent> {
   const stream = await openai().responses.stream(
     {
-      model: model('vision'),
+      model: model('coding'),
+      ...reasoningParam('coding'),
       input: [
         { role: 'system', content: SYSTEM },
         {

@@ -210,6 +210,8 @@ export interface AppSettings {
   apiKeyPresent: boolean;
   models: Record<string, string>; // user overrides only
   modelDefaults: Record<string, string>; // built-in defaults per purpose
+  reasoningEfforts: Record<string, string>; // user reasoning-effort overrides per task
+  reasoningEffortDefaults: Record<string, string>; // built-in reasoning effort per task
   overlay: OverlayPrefs;
   audio: AudioPrefs;
   privacyMode: boolean;
