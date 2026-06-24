@@ -18,10 +18,26 @@
   <img alt="Built with Electron" src="https://img.shields.io/badge/Electron-React%20%C2%B7%20TypeScript-47848F?style=flat-square" />
 </p>
 
-<!-- Screenshots welcome here once captured. Privacy Mode hides the app from screen
-     capture, so turn it off (Settings) before grabbing a shot, then re-enable it:
-<p align="center"><img src="docs/images/dashboard.png" alt="BrainCue dashboard" width="820" /></p>
--->
+## Screenshots
+
+<!-- Drop PNGs at the paths below to fill these in. Capture guide: docs/images/README.md.
+     (Turn Privacy Mode OFF in Settings before capturing, then turn it back on.) -->
+
+<p align="center">
+  <img src="docs/images/cue-card.png" alt="The floating Cue Card during a live interview — transcript and grounded answer" width="820" />
+  <br /><sub><b>The Cue Card</b> — live transcript, streamed answer, and on-the-fly controls; invisible to screen sharing.</sub>
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/interview.png" alt="Interview page" /><br /><sub><b>Interview</b> — pick a profile, start a saved interview.</sub></td>
+    <td width="50%"><img src="docs/images/reports.png" alt="Reports page" /><br /><sub><b>Reports</b> — every session, with a coaching report.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/images/mock.png" alt="Mock interview" /><br /><sub><b>Mock</b> — an AI interviewer; answers stream to the Cue Card.</sub></td>
+    <td width="50%"><img src="docs/images/settings.png" alt="Settings" /><br /><sub><b>Settings</b> — your key, models, privacy, hotkeys.</sub></td>
+  </tr>
+</table>
 
 ---
 
@@ -37,8 +53,8 @@
   filler.
 - 🪟 **Floating Cue Card** — an always-on-top panel that's **excluded from screen
   sharing & recording**, so it's there for you and invisible to everyone else.
-- 🧪 **Mock interview mode** — an AI interviewer asks questions aloud and gives
-  you feedback and a coaching report afterward.
+- 🧪 **Mock interview mode** — an AI interviewer asks questions aloud and the
+  copilot answers them in the Cue Card: a full rehearsal of the live experience.
 - ⌨️ **Global hotkeys** — toggle the Cue Card, solve a copied problem, or
   drag-select a region of the screen to read and answer.
 - 🔒 **Local-first & private** — data lives on your machine in a local database;
