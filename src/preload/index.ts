@@ -189,6 +189,9 @@ const api = {
     solve: (text: string) => invoke<{ started: true }>(IPC.capture.solve, { text }),
     solveImage: (image: string) => invoke<{ started: true }>(IPC.capture.solveImage, { image }),
     quickSolve: () => invoke<{ started: true }>(IPC.capture.quickSolve),
+    addRegion: (image: string) => invoke<{ added: true }>(IPC.capture.addRegion, { image }),
+    solveBuffer: () => invoke<{ started: true }>(IPC.capture.solveBuffer),
+    clearBuffer: () => invoke<{ cleared: true }>(IPC.capture.clearBuffer),
   },
   overlay: {
     show: () => invoke(IPC.overlay.show),
@@ -244,6 +247,7 @@ const api = {
     onAnswerPrefs: (cb: (p: AnswerPrefs) => void) => on(EVENTS.answerPrefs, cb),
     onAudioLevel: (cb: (p: { level: number }) => void) => on(EVENTS.audioLevel, cb),
     onSavePrompt: (cb: (p: SavePrompt) => void) => on(EVENTS.savePrompt, cb),
+    onCaptureBuffer: (cb: (p: { images: string[] }) => void) => on(EVENTS.captureBuffer, cb),
   },
 };
 

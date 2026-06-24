@@ -6,28 +6,38 @@ import type { AnswerEvent } from './answer';
 const SYSTEM = `You are shown a screenshot containing a coding/technical interview problem (and possibly code). Read it carefully, transcribe the problem accurately, then solve it.\n${CODING_RULES}`;
 
 /**
- * Solve a problem directly from an image using the 'coding' model (multimodal,
- * a reasoning model by default). Replaces local Tesseract OCR for the region
- * selector — runs over the network so it never blocks the main process, reads
- * code/diagrams far more reliably, and shares the same solver as the text path.
+ * Solve a problem from ONE OR MORE screenshots using the 'coding' model (multimodal,
+ * a reasoning model by default). A long LeetCode-style problem scrolls past one
+ * viewport, so the user captures several overlapping screenshots top-to-bottom and we
+ * send them ALL in a single request, instruction-first, in scroll order — the model
+ * reconstructs/dedupes them (far more robust than client-side pixel stitching).
+ * detail:'high' because code legibility is the whole game.
  */
-export async function* solveFromImage(
-  dataUrl: string,
+export async function* solveFromImages(
+  dataUrls: string[],
   signal?: AbortSignal,
 ): AsyncGenerator<AnswerEvent> {
+  const intro =
+    dataUrls.length > 1
+      ? `The following ${dataUrls.length} images are consecutive, top-to-bottom (possibly ` +
+        `overlapping) screenshots of ONE coding problem. Reconstruct the full problem text ` +
+        `(dedupe the overlapping regions), then solve it.`
+      : 'Solve the problem shown in this screenshot.';
+  const content = [
+    { type: 'input_text' as const, text: intro },
+    ...dataUrls.map((url) => ({
+      type: 'input_image' as const,
+      image_url: url,
+      detail: 'high' as const,
+    })),
+  ];
   const stream = await openai().responses.stream(
     {
       model: model('coding'),
       ...reasoningParam('coding'),
       input: [
         { role: 'system', content: SYSTEM },
-        {
-          role: 'user',
-          content: [
-            { type: 'input_text', text: 'Solve the problem shown in this screenshot.' },
-            { type: 'input_image', image_url: dataUrl, detail: 'auto' },
-          ],
-        },
+        { role: 'user', content },
       ],
     },
     { signal },
