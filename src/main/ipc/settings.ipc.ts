@@ -5,7 +5,7 @@ import type { AppSettings, AudioPrefs, OverlayPrefs } from '@shared/types';
 import { handle, NoInput } from './helpers';
 import { apiKeyStore } from '../services/security/apiKey';
 import { listModels, testApiKey } from '../services/openai/client';
-import { defaultModels, defaultEfforts } from '../services/openai/models';
+import { defaultEfforts, modelPreset, presetModels } from '../services/openai/models';
 import { SETTINGS_KEYS, settingsRepo } from '../db/repositories/settings.repo';
 import {
   getShortcuts,
@@ -29,7 +29,8 @@ function readSettings(): AppSettings {
   return {
     apiKeyPresent: apiKeyStore.isPresent(),
     models: settingsRepo.getJson(SETTINGS_KEYS.models, {}),
-    modelDefaults: { ...defaultModels },
+    modelPreset: modelPreset(),
+    modelDefaults: { ...presetModels() }, // effective per-task defaults for the active preset
     reasoningEfforts: settingsRepo.getJson(SETTINGS_KEYS.reasoningEfforts, {}),
     reasoningEffortDefaults: { ...defaultEfforts },
     overlay: settingsRepo.getJson(SETTINGS_KEYS.overlayPrefs, defaultOverlay),
@@ -45,6 +46,7 @@ function readSettings(): AppSettings {
 
 const settingsPatch = z.object({
   models: z.record(z.string()).optional(),
+  modelPreset: z.enum(['balanced', 'low_cost', 'best']).optional(),
   reasoningEfforts: z.record(z.string()).optional(),
   overlay: z
     .object({
@@ -74,6 +76,7 @@ export function registerSettingsIpc(): void {
 
   handle(IPC.settings.set, settingsPatch, (patch) => {
     if (patch.models) settingsRepo.setJson(SETTINGS_KEYS.models, patch.models);
+    if (patch.modelPreset) settingsRepo.set(SETTINGS_KEYS.modelPreset, patch.modelPreset);
     if (patch.reasoningEfforts)
       settingsRepo.setJson(SETTINGS_KEYS.reasoningEfforts, patch.reasoningEfforts);
     if (patch.overlay) {

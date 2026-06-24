@@ -1,10 +1,10 @@
 import { SETTINGS_KEYS, settingsRepo } from '../../db/repositories/settings.repo';
 
-// Cost-effective defaults: the mini/nano tiers are plenty for grounded,
-// short interview answers and keep per-session cost low. Power users can upgrade
-// any task to gpt-4.1 in Settings → OpenAI Models. Transcription stays on the full
-// model since accuracy there drives every downstream answer.
-export const defaultModels = {
+export type PresetName = 'balanced' | 'low_cost' | 'best';
+
+// Balanced (default): cost-effective mini/nano on the live paths; the reasoning
+// coding solver where it earns its cost. Defines the task keys.
+const BALANCED = {
   answer: 'gpt-4.1-mini', // the live copilot answer — good quality, ~5× cheaper than gpt-4.1
   parsing: 'gpt-4.1-mini', // one-off resume/JD parsing
   classify: 'gpt-4.1-nano', // high-frequency "is this a question?" — cheapest tier
@@ -12,21 +12,64 @@ export const defaultModels = {
   transcription: 'gpt-4o-transcribe', // accuracy here is the core input — keep it strong
   tts: 'gpt-4o-mini-tts',
   mock: 'gpt-4.1-mini', // mock interviewer questions
-  // Coding-problem solver — used by BOTH the clipboard/text path (coding.ts) and
-  // the screenshot path (vision.ts). The one task where a reasoning model earns its
-  // cost: it's latency-tolerant (the user waits a beat) and correctness is the whole
-  // point. Default to the cost-effective reasoning tier; verify the exact id against
-  // the live model list (Settings → Load my models) and override per problem in the
-  // Cue Card if needed.
+  // Coding-problem solver — used by BOTH the clipboard/text path (coding.ts) and the
+  // screenshot path (vision.ts). The one task where a reasoning model earns its cost:
+  // latency-tolerant (the user waits a beat) and correctness is the whole point.
   coding: 'gpt-5-mini',
 } as const;
 
-export type ModelKey = keyof typeof defaultModels;
+export type ModelKey = keyof typeof BALANCED;
 
-/** User overrides merged over defaults. Model ids are config, not contracts. */
+/**
+ * Cost/quality presets. The live, high-frequency paths (classify every turn, the
+ * read-along answer cue) stay on FAST NON-REASONING models in EVERY preset — even
+ * "best" — because a reasoning model on the hot path adds latency without helping a
+ * grounded conversational cue. "Best" upgrades to the full gpt-4.1 for quality and
+ * reserves a reasoning model for the latency-tolerant coding solver. Users can still
+ * override any task individually (Settings → OpenAI Models) on top of the preset.
+ */
+export const PRESETS: Record<PresetName, Record<ModelKey, string>> = {
+  balanced: BALANCED,
+  low_cost: {
+    answer: 'gpt-4.1-mini',
+    parsing: 'gpt-4.1-nano', // cheapest tier for one-off parsing
+    classify: 'gpt-4.1-nano',
+    embedding: 'text-embedding-3-small',
+    transcription: 'gpt-4o-mini-transcribe', // half-price STT
+    tts: 'gpt-4o-mini-tts',
+    mock: 'gpt-4.1-mini',
+    coding: 'gpt-5-mini',
+  },
+  best: {
+    answer: 'gpt-4.1', // full model: higher quality, still non-reasoning = still snappy
+    parsing: 'gpt-4.1',
+    classify: 'gpt-4.1-mini',
+    embedding: 'text-embedding-3-small',
+    transcription: 'gpt-4o-transcribe',
+    tts: 'gpt-4o-mini-tts',
+    mock: 'gpt-4.1',
+    coding: 'gpt-5', // strongest reasoning solver for the hardest problems
+  },
+};
+
+/** The Balanced table is the baseline default set (back-compat alias). */
+export const defaultModels: Record<ModelKey, string> = PRESETS.balanced;
+
+/** The active preset (defaults to balanced). */
+export function modelPreset(): PresetName {
+  const p = settingsRepo.get(SETTINGS_KEYS.modelPreset);
+  return p === 'low_cost' || p === 'best' ? p : 'balanced';
+}
+
+/** The active preset's model table. */
+export function presetModels(): Record<ModelKey, string> {
+  return PRESETS[modelPreset()];
+}
+
+/** User per-task override → the active preset's model. Ids are config, not contracts. */
 export function model(key: ModelKey): string {
   const overrides = settingsRepo.getJson<Record<string, string>>(SETTINGS_KEYS.models, {});
-  return overrides[key] || defaultModels[key];
+  return overrides[key] || presetModels()[key];
 }
 
 /** Reasoning effort for GPT-5 / o-series models. Higher = better quality but more

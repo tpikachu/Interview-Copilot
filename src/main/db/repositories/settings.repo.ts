@@ -46,6 +46,7 @@ export const SETTINGS_KEYS = {
   apiKeyEnc: 'openai_api_key_enc',
   apiKeyPresent: 'openai_api_key_present',
   models: 'models',
+  modelPreset: 'model_preset',
   reasoningEfforts: 'reasoning_efforts',
   overlayPrefs: 'overlay_prefs',
   privacyMode: 'privacy_mode',
@@ -60,6 +61,7 @@ export const SETTINGS_KEYS = {
 /** Non-secret settings cleared by a factory reset (everything except the API key). */
 const APP_SETTING_KEYS: string[] = [
   SETTINGS_KEYS.models,
+  SETTINGS_KEYS.modelPreset,
   SETTINGS_KEYS.reasoningEfforts,
   SETTINGS_KEYS.overlayPrefs,
   SETTINGS_KEYS.privacyMode,
