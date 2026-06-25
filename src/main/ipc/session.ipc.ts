@@ -112,6 +112,12 @@ export function registerSessionIpc(): void {
     },
   );
 
+  handle(
+    IPC.session.setAnswering,
+    z.object({ enabled: z.boolean() }),
+    ({ enabled }) => sessionManager.setAnsweringActive(enabled),
+  );
+
   handle(IPC.session.regenerate, z.void(), () => sessionManager.regenerateActive());
 
   handle(IPC.session.clearAnswer, z.void(), () => sessionManager.clearAnswerActive());

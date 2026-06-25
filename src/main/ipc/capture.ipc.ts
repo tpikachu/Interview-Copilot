@@ -3,9 +3,12 @@ import { IPC } from '@shared/ipc';
 import { handle, NoInput } from './helpers';
 import { captureScreen } from '../services/capture/screenshot';
 import {
+  addCapture,
+  clearCaptures,
   quickSolveFromClipboard,
   runCodingSolve,
   runCodingSolveFromImage,
+  solveCaptures,
 } from '../services/capture/codingMode';
 import { closeSelector, getPendingFrame, openSelector } from '../windows/selectionWindow';
 
@@ -46,5 +49,22 @@ export function registerCaptureIpc(): void {
   handle(IPC.capture.quickSolve, NoInput, async () => {
     void quickSolveFromClipboard();
     return { started: true as const };
+  });
+
+  // Add a captured region to the multi-image buffer (the selector calls this per shot).
+  handle(IPC.capture.addRegion, z.object({ image: z.string().min(1) }), ({ image }) => {
+    addCapture(image);
+    return { added: true as const };
+  });
+
+  // Solve all buffered screenshots in a single vision call (then the buffer clears).
+  handle(IPC.capture.solveBuffer, NoInput, () => {
+    void solveCaptures();
+    return { started: true as const };
+  });
+
+  handle(IPC.capture.clearBuffer, NoInput, () => {
+    clearCaptures();
+    return { cleared: true as const };
   });
 }

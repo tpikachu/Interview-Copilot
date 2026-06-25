@@ -15,7 +15,7 @@ export default function RegionSelector() {
   const [start, setStart] = useState<Point | null>(null);
   const [cur, setCur] = useState<Point | null>(null);
   const [phase, setPhase] = useState<Phase>('select');
-  const [message, setMessage] = useState('Drag to select the problem area');
+  const [message, setMessage] = useState('Drag to capture the problem (scroll & repeat for long ones)');
 
   // Load a frame into the selector and reset the drag/selection state. The window
   // is pre-created at startup and reused, so each capture pushes a fresh frame via
@@ -29,7 +29,7 @@ export default function RegionSelector() {
     setStart(null);
     setCur(null);
     setPhase('select');
-    setMessage('Drag to select the problem area');
+    setMessage('Drag to capture the problem (scroll & repeat for long ones)');
     setFrame(image);
     const img = new Image();
     img.onload = () => (imgRef.current = img);
@@ -70,7 +70,7 @@ export default function RegionSelector() {
       return;
     }
     setPhase('processing');
-    setMessage('Generating solution…');
+    setMessage('Adding capture…');
 
     const scale = img.naturalWidth / window.innerWidth;
     const canvas = document.createElement('canvas');
@@ -91,8 +91,10 @@ export default function RegionSelector() {
     const crop = canvas.toDataURL('image/png');
 
     try {
-      setMessage('Generating solution…');
-      await api.capture.solveImage(crop); // OpenAI vision → streams to the overlay
+      // Add to the multi-image buffer (scroll & capture more, then Solve in the Cue
+      // Card). A long problem spans several viewports, so we accumulate rather than
+      // solve each shot in isolation.
+      await api.capture.addRegion(crop);
       await api.capture.closeSelector();
     } catch (e) {
       setPhase('error');

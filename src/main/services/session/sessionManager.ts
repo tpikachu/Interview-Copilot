@@ -37,6 +37,11 @@ interface LiveState {
   answering: boolean; // an answer is currently being generated (avoid overlap)
   answerAbort: AbortController | null; // cancels the in-flight answer (clear/regen)
   lastQuestion: LastQuestion | null;
+  // Coding sessions default to "listen but don't auto-answer" so a generated coding
+  // answer isn't replaced when the interviewer speaks. We keep transcribing and
+  // remember the last utterance so toggling answering on can answer it.
+  suppressAnswers: boolean;
+  pendingQuestionText: string | null;
   transcriber: RealtimeTranscriber | null;
 }
 
@@ -85,6 +90,8 @@ export const sessionManager = {
       answering: false,
       answerAbort: null,
       lastQuestion: null,
+      suppressAnswers: false,
+      pendingQuestionText: null,
       transcriber: null,
     };
     showOverlay();
@@ -228,6 +235,14 @@ export const sessionManager = {
       .values({ id: tcId, sessionId, speaker: 'interviewer', text, isFinal: 1 })
       .run();
     broadcast(EVENTS.transcriptDelta, { text, isFinal: true, speaker: 'interviewer' });
+
+    // Coding session with answering suppressed: keep transcribing (so the interviewer's
+    // words still show), but DON'T auto-answer — that would replace the coding answer.
+    // Remember the utterance so toggling answering on can answer it.
+    if (live.suppressAnswers) {
+      live.pendingQuestionText = text;
+      return;
+    }
 
     // Don't pile up overlapping answers — if one is already streaming, just keep
     // transcribing. (The user can still ask manually.) Claim the slot
@@ -568,5 +583,20 @@ export const sessionManager = {
     if (!live || !text) return { ok: false };
     await this.answerQuestion(live.sessionId, text);
     return { ok: true };
+  },
+
+  /** Enable/disable auto-answering of the interviewer for the active session. Coding
+   *  sessions default to disabled (listen-only). Enabling it also answers the question
+   *  the interviewer just asked (remembered while suppressed), so toggling on catches up. */
+  setAnsweringActive(enabled: boolean): { enabled: boolean; answered: boolean } {
+    if (!live) return { enabled: true, answered: false };
+    live.suppressAnswers = !enabled;
+    if (enabled && live.pendingQuestionText) {
+      const text = live.pendingQuestionText;
+      live.pendingQuestionText = null;
+      void this.answerQuestion(live.sessionId, text).catch(() => {});
+      return { enabled, answered: true };
+    }
+    return { enabled, answered: false };
   },
 };

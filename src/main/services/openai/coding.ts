@@ -1,18 +1,21 @@
 import { openai } from './client';
-import { model } from './models';
+import { model, reasoningParam } from './models';
 import { CODING_RULES } from './codingPrompt';
 import type { AnswerEvent } from './answer';
 
 const SYSTEM = `You solve a coding/technical problem given as plain text.\n${CODING_RULES}`;
 
-/** Stream a coding-mode answer from OCR'd problem text. */
+/** Stream a coding-mode answer from clipboard/OCR'd problem text. Uses the dedicated
+ *  'coding' model (a reasoning model by default) — the same solver as the screenshot
+ *  path, so both stay consistently smart. */
 export async function* solveFromOcr(
   text: string,
   signal?: AbortSignal,
 ): AsyncGenerator<AnswerEvent> {
   const stream = await openai().responses.stream(
     {
-      model: model('answer'),
+      model: model('coding'),
+      ...reasoningParam('coding'),
       input: [
         { role: 'system', content: SYSTEM },
         { role: 'user', content: text.slice(0, 12_000) },

@@ -47,6 +47,18 @@ const MODEL_FIELDS: { key: string; label: string; hint: string; suggest: string[
     hint: 'Transcribes microphone audio.',
     suggest: ['gpt-4o-transcribe', 'gpt-4o-mini-transcribe', 'whisper-1'],
   },
+  {
+    key: 'coding',
+    label: 'Coding solver',
+    hint: 'Solves coding problems from clipboard text or a screenshot (reasoning model recommended).',
+    suggest: ['gpt-5-mini', 'gpt-5', 'gpt-4.1', 'o4-mini'],
+  },
+];
+
+const PRESET_OPTIONS: { value: string; label: string; hint: string }[] = [
+  { value: 'balanced', label: 'Balanced', hint: 'Fast + smart (default)' },
+  { value: 'low_cost', label: 'Low cost', hint: 'Cheapest tiers' },
+  { value: 'best', label: 'Best', hint: 'Max quality' },
 ];
 
 export default function SettingsPage() {
@@ -345,11 +357,21 @@ function DangerZoneCard({ onChanged }: { onChanged: () => Promise<void> }) {
 
 function ModelsCard({ settings, onSaved }: { settings: AppSettings; onSaved: () => Promise<void> }) {
   const [overrides, setOverrides] = useState<Record<string, string>>(settings.models ?? {});
+  const [preset, setPreset] = useState(settings.modelPreset ?? 'balanced');
   const [available, setAvailable] = useState<string[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => setOverrides(settings.models ?? {}), [settings.models]);
+  useEffect(() => setPreset(settings.modelPreset ?? 'balanced'), [settings.modelPreset]);
+
+  // Switch the cost/quality preset. Per-task overrides below still win on top.
+  const selectPreset = async (p: string) => {
+    setPreset(p);
+    await api.settings.set({ modelPreset: p });
+    await onSaved();
+    setStatus(`Preset: ${PRESET_OPTIONS.find((o) => o.value === p)?.label ?? p}.`);
+  };
 
   const options = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -399,9 +421,35 @@ function ModelsCard({ settings, onSaved }: { settings: AppSettings; onSaved: () 
         </Button>
       </div>
       <p className="mb-4 text-sm text-neutral-400">
-        Choose a model per task, or leave blank to use the default. Pick from the dropdown or type a
-        model id. “Load my models” fetches what your API key has access to.
+        Pick a preset, or override any single task below. “Load my models” fetches what your API key
+        has access to.
       </p>
+
+      {/* Cost/quality preset — sets the per-task defaults; overrides below still win. */}
+      <div className="mb-4">
+        <span className="mb-1.5 block text-xs font-medium text-neutral-400">Preset</span>
+        <div className="flex gap-1 rounded-lg border border-neutral-700 bg-neutral-950 p-1">
+          {PRESET_OPTIONS.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => void selectPreset(p.value)}
+              className={`flex-1 rounded-md px-3 py-2 text-center transition-colors ${
+                preset === p.value
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-neutral-300 hover:bg-neutral-800'
+              }`}
+            >
+              <span className="block text-sm font-medium">{p.label}</span>
+              <span className="block text-[10px] opacity-70">{p.hint}</span>
+            </button>
+          ))}
+        </div>
+        <p className="mt-1.5 text-xs text-neutral-500">
+          The live answer &amp; question detection stay on fast, non-reasoning models in every preset
+          (even “Best”) — a reasoning model there would add latency without helping. “Best” reserves
+          a reasoning model for the coding solver.
+        </p>
+      </div>
 
       <div className="space-y-4">
         {MODEL_FIELDS.map((f) => {

@@ -82,6 +82,7 @@ export const IPC = {
     askActive: 'session:ask-active',
     setInterviewType: 'session:set-interview-type',
     setAnswerPrefs: 'session:set-answer-prefs',
+    setAnswering: 'session:set-answering', // coding: toggle auto-answering the interviewer
     regenerate: 'session:regenerate',
     clearAnswer: 'session:clear-answer',
   },
@@ -98,6 +99,9 @@ export const IPC = {
     solve: 'capture:solve',
     solveImage: 'capture:solve-image',
     quickSolve: 'capture:quick-solve',
+    addRegion: 'capture:add-region', // add a captured region to the multi-image buffer
+    solveBuffer: 'capture:solve-buffer', // solve all buffered screenshots in one call
+    clearBuffer: 'capture:clear-buffer',
   },
   overlay: {
     show: 'overlay:show',
@@ -150,6 +154,7 @@ export const EVENTS = {
   answerPrefs: 'session:answer-prefs', // current format/length/pronunciation, for the Cue Card toggles
   audioLevel: 'session:audio-level', // throttled mic level (0-1) for the Cue Card meter
   savePrompt: 'session:save-prompt', // a session just stopped → ask the dashboard to save/discard it
+  captureBuffer: 'capture:buffer', // current multi-image problem captures, for the Cue Card strip
 } as const;
 
 /** Pushed to the dashboard when a session stops, to prompt save-or-discard. */

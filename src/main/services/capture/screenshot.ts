@@ -9,9 +9,10 @@ export interface CaptureResult {
 }
 
 // Cap the captured width. Full native resolution (e.g. 4K @ 150% scale) produces
-// a huge image whose data URL chokes IPC/canvas and can freeze the app. This is
-// plenty for vision reading and region cropping.
-const MAX_WIDTH = 1920;
+// a huge image whose data URL chokes IPC/canvas and can freeze the app. 2560 keeps
+// small code text legible for the vision model when a region is cropped from this
+// frame (1920 downscaled hi-DPI editor text below readability) while staying bounded.
+const MAX_WIDTH = 2560;
 
 /** Capture a specific display (defaults to the primary one). On multi-monitor
  *  setups the source is matched by display id so we grab the right screen. */

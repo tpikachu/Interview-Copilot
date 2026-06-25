@@ -209,7 +209,10 @@ export interface AudioPrefs {
 export interface AppSettings {
   apiKeyPresent: boolean;
   models: Record<string, string>; // user overrides only
-  modelDefaults: Record<string, string>; // built-in defaults per purpose
+  modelPreset: string; // active cost/quality preset: 'balanced' | 'low_cost' | 'best'
+  modelDefaults: Record<string, string>; // effective per-task defaults (the active preset's table)
+  reasoningEfforts: Record<string, string>; // user reasoning-effort overrides per task
+  reasoningEffortDefaults: Record<string, string>; // built-in reasoning effort per task
   overlay: OverlayPrefs;
   audio: AudioPrefs;
   privacyMode: boolean;

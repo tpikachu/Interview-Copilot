@@ -2,9 +2,46 @@ import { clipboard } from 'electron';
 import { EVENTS } from '@shared/ipc';
 import { broadcast } from '../../ipc/broadcast';
 import { solveFromOcr } from '../openai/coding';
-import { solveFromImage } from '../openai/vision';
+import { solveFromImages } from '../openai/vision';
 import type { AnswerEvent } from '../openai/answer';
 import { showOverlay } from '../../windows/overlayWindow';
+
+// Accumulated problem screenshots for the current solve. A long problem scrolls
+// past one viewport, so the user captures several (scroll → capture → repeat) and
+// they're sent together. Cleared after a solve. Capped so a runaway can't bloat one
+// request.
+const MAX_CAPTURES = 8;
+let captureBuffer: string[] = [];
+
+function broadcastBuffer(): void {
+  broadcast(EVENTS.captureBuffer, { images: captureBuffer }, ['overlay']);
+}
+
+/** Add a captured region to the buffer (from the region selector). */
+export function addCapture(dataUrl: string): void {
+  if (captureBuffer.length >= MAX_CAPTURES) captureBuffer.shift(); // keep the most recent N
+  captureBuffer.push(dataUrl);
+  showOverlay();
+  broadcastBuffer();
+}
+
+export function clearCaptures(): void {
+  captureBuffer = [];
+  broadcastBuffer();
+}
+
+/** Solve all accumulated screenshots in one vision call, then clear the buffer. */
+export function solveCaptures(): Promise<void> {
+  if (captureBuffer.length === 0) return Promise.resolve();
+  const images = captureBuffer;
+  captureBuffer = [];
+  broadcastBuffer();
+  const label =
+    images.length > 1
+      ? `Coding problem (${images.length} screenshots)`
+      : 'Coding problem (from screenshot)';
+  return streamToOverlay(solveFromImages(images), label);
+}
 
 async function streamToOverlay(gen: AsyncGenerator<AnswerEvent>, label: string): Promise<void> {
   const questionId = crypto.randomUUID();
@@ -30,9 +67,9 @@ export function runCodingSolve(text: string): Promise<void> {
   return streamToOverlay(solveFromOcr(text), 'Coding problem (from clipboard)');
 }
 
-/** Stream a coding solution from a screenshot/region image (OpenAI vision). */
+/** Stream a coding solution from a single screenshot/region image (OpenAI vision). */
 export function runCodingSolveFromImage(dataUrl: string): Promise<void> {
-  return streamToOverlay(solveFromImage(dataUrl), 'Coding problem (from screenshot)');
+  return streamToOverlay(solveFromImages([dataUrl]), 'Coding problem (from screenshot)');
 }
 
 /**
