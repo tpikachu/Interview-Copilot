@@ -137,6 +137,8 @@ const api = {
       invoke<{ ok: boolean }>(IPC.session.askActive, { questionText }),
     setInterviewType: (sessionId: string, interviewType: string) =>
       invoke<{ ok: true }>(IPC.session.setInterviewType, { sessionId, interviewType }),
+    setAnswering: (enabled: boolean) =>
+      invoke<{ enabled: boolean; answered: boolean }>(IPC.session.setAnswering, { enabled }),
     regenerate: () => invoke<{ regenerated: boolean }>(IPC.session.regenerate),
     clearAnswer: () => invoke<{ cleared: boolean }>(IPC.session.clearAnswer),
     stop: (sessionId: string) => invoke(IPC.session.stop, { sessionId }),

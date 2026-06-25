@@ -35,6 +35,24 @@ interface Line {
   text: string;
 }
 
+/** One generated answer (interview question or coding solve). With history on, past
+ *  cards are kept (collapsed) instead of being replaced; each is individually removable. */
+interface AnswerCard {
+  id: number;
+  question: string;
+  answer: string;
+  meta: AnswerMetaEvent | null;
+  context: ContextSentEvent | null;
+  streaming: boolean;
+  collapsed: boolean;
+}
+
+/** Apply a patch to the newest (current) card. */
+function patchLast(cards: AnswerCard[], patch: Partial<AnswerCard>): AnswerCard[] {
+  if (!cards.length) return cards;
+  return [...cards.slice(0, -1), { ...cards[cards.length - 1], ...patch }];
+}
+
 // Cap transcript lines kept in the DOM — a long interview can produce thousands.
 const MAX_LINES = 300;
 // Mic-level thresholds for "someone is speaking" — with hysteresis (turn on at a
@@ -54,11 +72,12 @@ const INTERVIEW_TYPES: { value: InterviewType; label: string }[] = [
 ];
 
 export default function Overlay() {
-  const [question, setQuestion] = useState('');
-  const [answer, setAnswer] = useState('');
-  const [meta, setMeta] = useState<AnswerMetaEvent | null>(null);
-  const [context, setContext] = useState<ContextSentEvent | null>(null);
-  const [streaming, setStreaming] = useState(false);
+  // Answer cards: the newest is the live/streaming one. With history on, prior cards
+  // are kept collapsed instead of replaced; each card is individually removable.
+  const [cards, setCards] = useState<AnswerCard[]>([]);
+  const [historyEnabled, setHistoryEnabled] = useState(false);
+  const cardId = useRef(0);
+  const historyEnabledRef = useRef(false); // mirror for the once-subscribed handlers
 
   const [fontSize, setFontSize] = useState(14);
   const [opacity, setOpacity] = useState(0.95);
@@ -75,6 +94,9 @@ export default function Overlay() {
   const [format, setFormat] = useState<AnswerStyle>('default');
   const [length, setLength] = useState<AnswerLength>('key_points');
   const [pronunciation, setPronunciation] = useState(false);
+  // Coding sessions default to listen-only (don't auto-answer the interviewer, so a
+  // generated coding answer isn't replaced). This toggle (coding-only) flips it on.
+  const [answerInterviewer, setAnswerInterviewer] = useState(false);
 
   // Settings modal (audio device + appearance; persisted).
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -119,7 +141,7 @@ export default function Overlay() {
       if (!pendingTokens.current) return;
       const chunk = pendingTokens.current;
       pendingTokens.current = '';
-      setAnswer((a) => a + chunk);
+      setCards((cs) => patchLast(cs, { answer: (cs[cs.length - 1]?.answer ?? '') + chunk }));
     };
     const scheduleFlush = () => {
       if (flushHandle.current == null) flushHandle.current = requestAnimationFrame(flush);
@@ -134,11 +156,24 @@ export default function Overlay() {
       api.events.onQuestionDetected((p) => {
         const text = (p as { text: string }).text;
         cancelFlush();
-        setQuestion(text);
-        setAnswer('');
-        setMeta(null);
-        setContext(null);
-        setStreaming(true);
+        // History on: collapse prior cards and add a fresh one. Off: replace.
+        setCards((cs) => {
+          const prior = historyEnabledRef.current
+            ? cs.map((c) => ({ ...c, collapsed: true, streaming: false }))
+            : [];
+          return [
+            ...prior,
+            {
+              id: cardId.current++,
+              question: text,
+              answer: '',
+              meta: null,
+              context: null,
+              streaming: true,
+              collapsed: false,
+            },
+          ];
+        });
         // Mirror the dashboard: surface the detected question in the transcript too.
         setTranscript((t) => [...t, { id: lineId.current++, speaker: 'detected question', text }]);
       }),
@@ -155,21 +190,20 @@ export default function Overlay() {
         pendingTokens.current += (p as { token: string }).token;
         scheduleFlush();
       }),
-      api.events.onAnswerMeta((p) => setMeta(p as AnswerMetaEvent)),
+      api.events.onAnswerMeta((p) => setCards((cs) => patchLast(cs, { meta: p as AnswerMetaEvent }))),
       api.events.onAnswerDone(() => {
         flush();
-        setStreaming(false);
+        setCards((cs) => patchLast(cs, { streaming: false }));
       }),
-      // Regenerate: clear the current answer (the transcript is untouched) so the
-      // re-streamed tokens don't append to the old answer.
+      // Regenerate: clear the current card's answer (transcript untouched) so the
+      // re-streamed tokens don't append to the old answer. Reuses the same card.
       api.events.onAnswerReset(() => {
         cancelFlush();
-        setAnswer('');
-        setMeta(null);
-        setContext(null);
-        setStreaming(true);
+        setCards((cs) => patchLast(cs, { answer: '', meta: null, context: null, streaming: true }));
       }),
-      api.events.onContextSent((p) => setContext(p as ContextSentEvent)),
+      api.events.onContextSent((p) =>
+        setCards((cs) => patchLast(cs, { context: p as ContextSentEvent })),
+      ),
       api.events.onCaptureBuffer((p) => setCaptures(p.images)),
       api.events.onSessionState((p) => {
         const s = p as { paused: boolean; status: string };
@@ -186,18 +220,14 @@ export default function Overlay() {
           lineId.current = 0;
           setTranscript([]);
           setInterim('');
-          setQuestion('');
-          setAnswer('');
-          setMeta(null);
-          setContext(null);
-          setStreaming(false);
+          setCards([]);
           setAtBottom(true);
         }
         // Session stopped: drop the dangling interim partial + streaming cursor so
         // the Cue Card doesn't look like it's still listening.
         if (!nowLive) {
           setInterim('');
-          setStreaming(false);
+          setCards((cs) => cs.map((c) => ({ ...c, streaming: false })));
           setLevel(0);
           setSpeaking(false);
         }
@@ -248,6 +278,26 @@ export default function Overlay() {
     };
   }, []);
 
+  // Derived from the cards list — the newest card is the live/streaming answer.
+  const current = cards[cards.length - 1];
+  const question = current?.question ?? '';
+  const streaming = !!current?.streaming;
+  const meta = current?.meta ?? null;
+  const context = current?.context ?? null;
+
+  // Mirror history toggle into a ref for the once-subscribed event handlers.
+  useEffect(() => {
+    historyEnabledRef.current = historyEnabled;
+  }, [historyEnabled]);
+
+  // Coding: keep the interviewer audio transcribing but suppress auto-answers by
+  // default; non-coding sessions always auto-answer. Toggling it on (in coding) also
+  // answers what the interviewer just asked (handled in main).
+  useEffect(() => {
+    if (!live) return;
+    void api.session.setAnswering(interviewType !== 'coding' || answerInterviewer);
+  }, [live, interviewType, answerInterviewer]);
+
   const togglePrivacy = async () => {
     const { enabled } = (await api.privacy.toggle()) as { enabled: boolean };
     setPrivacy(enabled);
@@ -295,11 +345,7 @@ export default function Overlay() {
       flushHandle.current = null;
     }
     pendingTokens.current = '';
-    setQuestion('');
-    setAnswer('');
-    setMeta(null);
-    setContext(null);
-    setStreaming(false);
+    setCards([]); // clear all answers (each card also has its own × remove)
     void api.session.clearAnswer();
   };
   const stop = () => void api.session.stopActive();
@@ -651,7 +697,31 @@ export default function Overlay() {
               </button>
             </span>
           </span>
+          {interviewType === 'coding' && (
+            <button
+              onClick={() => setAnswerInterviewer((v) => !v)}
+              title={
+                answerInterviewer
+                  ? 'Auto-answering the interviewer — click to go listen-only'
+                  : "Listen-only: transcribes but won't auto-answer (keeps your coding answer). Click to answer what the interviewer just asked."
+              }
+              className={`rounded-md px-2 py-1 text-[11px] font-medium normal-case transition-colors ${
+                answerInterviewer
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-neutral-800 text-amber-300 hover:text-amber-200'
+              }`}
+            >
+              {answerInterviewer ? '🎧 Answering' : '🔇 Listen-only'}
+            </button>
+          )}
           <span className="flex-1" />
+          <Btn
+            active={historyEnabled}
+            onClick={() => setHistoryEnabled((v) => !v)}
+            title="Keep answer history (collapse past answers instead of replacing them)"
+          >
+            <span className="text-[12px] leading-none">📚</span>
+          </Btn>
           <Btn
             active={pronunciation}
             onClick={togglePronunciation}
@@ -758,13 +828,10 @@ export default function Overlay() {
         </>
       )}
 
-      {question && <p className="mb-1 shrink-0 text-xs font-medium text-blue-300">Q: {question}</p>}
-
-      {/* Answer (fills the remaining space) */}
-      <div className="min-h-0 flex-1 overflow-auto leading-relaxed" style={noDrag}>
-        {answer ? (
-          <Markdown>{answer}</Markdown>
-        ) : (
+      {/* Answer cards — the newest streams; older ones are kept (collapsed) when
+          history is on. Click a collapsed card to expand; × removes one. */}
+      <div className="min-h-0 flex-1 space-y-2 overflow-auto" style={noDrag}>
+        {cards.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center text-neutral-500">
             {live && !paused ? (
               <>
@@ -777,13 +844,57 @@ export default function Overlay() {
                 <span className="mt-2 text-xs">
                   Ready. Start an interview from the dashboard —
                   <br />
-                  the transcript & suggested answers stream here.
+                  the transcript &amp; suggested answers stream here.
                 </span>
               </>
             )}
           </div>
+        ) : (
+          cards.map((c, i) => {
+            const isCurrent = i === cards.length - 1;
+            return (
+              <div
+                key={c.id}
+                className={
+                  isCurrent ? '' : 'rounded-lg border border-neutral-800 bg-neutral-950/40 px-2 py-1'
+                }
+              >
+                <div className="flex items-start gap-1">
+                  <button
+                    onClick={() =>
+                      setCards((cs) =>
+                        cs.map((x) => (x.id === c.id ? { ...x, collapsed: !x.collapsed } : x)),
+                      )
+                    }
+                    className="flex min-w-0 flex-1 items-start gap-1 text-left text-xs font-medium text-blue-300 hover:text-blue-200"
+                  >
+                    <ChevronRightIcon
+                      className={`mt-0.5 h-3 w-3 shrink-0 transition-transform ${c.collapsed ? '' : 'rotate-90'}`}
+                    />
+                    <span className={c.collapsed ? 'truncate' : ''}>Q: {c.question}</span>
+                  </button>
+                  <button
+                    onClick={() => setCards((cs) => cs.filter((x) => x.id !== c.id))}
+                    title="Remove this answer"
+                    className="shrink-0 rounded p-0.5 text-neutral-600 hover:text-red-300"
+                  >
+                    <CloseIcon className="h-3 w-3" />
+                  </button>
+                </div>
+                {!c.collapsed && (
+                  <div className="mt-0.5 leading-relaxed">
+                    {c.answer ? (
+                      <Markdown>{c.answer}</Markdown>
+                    ) : isCurrent && live && !paused ? (
+                      <span className="text-xs text-neutral-500">Listening…</span>
+                    ) : null}
+                    {c.streaming && <span className="ml-0.5 animate-pulse">▋</span>}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
-        {streaming && <span className="ml-0.5 animate-pulse">▋</span>}
       </div>
 
       {/* Manual Ask — type a question (handy when auto-detection misses one, or to
