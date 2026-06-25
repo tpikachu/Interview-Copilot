@@ -6,6 +6,11 @@ release/
 dist/
 *.log
 
+# Playwright e2e output
+test-results/
+playwright-report/
+.playwright/
+
 # Secrets — never commit
 .env
 .env.local
