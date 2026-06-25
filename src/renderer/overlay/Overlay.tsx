@@ -13,6 +13,14 @@ import type {
 import { Markdown } from '../components/Markdown';
 import { Modal } from '../components/ui';
 import {
+  type AnswerCard,
+  addCard,
+  makeCard,
+  patchLast,
+  removeCard,
+  toggleCollapsed,
+} from './answerCards';
+import {
   BoltIcon,
   ChevronRightIcon,
   CloseIcon,
@@ -35,23 +43,6 @@ interface Line {
   text: string;
 }
 
-/** One generated answer (interview question or coding solve). With history on, past
- *  cards are kept (collapsed) instead of being replaced; each is individually removable. */
-interface AnswerCard {
-  id: number;
-  question: string;
-  answer: string;
-  meta: AnswerMetaEvent | null;
-  context: ContextSentEvent | null;
-  streaming: boolean;
-  collapsed: boolean;
-}
-
-/** Apply a patch to the newest (current) card. */
-function patchLast(cards: AnswerCard[], patch: Partial<AnswerCard>): AnswerCard[] {
-  if (!cards.length) return cards;
-  return [...cards.slice(0, -1), { ...cards[cards.length - 1], ...patch }];
-}
 
 // Cap transcript lines kept in the DOM — a long interview can produce thousands.
 const MAX_LINES = 300;
@@ -160,23 +151,7 @@ export default function Overlay() {
         const text = (p as { text: string }).text;
         cancelFlush();
         // History on: collapse prior cards and add a fresh one. Off: replace.
-        setCards((cs) => {
-          const prior = historyEnabledRef.current
-            ? cs.map((c) => ({ ...c, collapsed: true, streaming: false }))
-            : [];
-          return [
-            ...prior,
-            {
-              id: cardId.current++,
-              question: text,
-              answer: '',
-              meta: null,
-              context: null,
-              streaming: true,
-              collapsed: false,
-            },
-          ];
-        });
+        setCards((cs) => addCard(cs, makeCard(cardId.current++, text), historyEnabledRef.current));
         // Mirror the dashboard: surface the detected question in the transcript too.
         setTranscript((t) => [...t, { id: lineId.current++, speaker: 'detected question', text }]);
       }),
@@ -889,7 +864,7 @@ export default function Overlay() {
                   <button
                     onClick={() =>
                       setCards((cs) =>
-                        cs.map((x) => (x.id === c.id ? { ...x, collapsed: !x.collapsed } : x)),
+                        toggleCollapsed(cs, c.id),
                       )
                     }
                     className="flex min-w-0 flex-1 items-start gap-1 text-left text-xs font-medium text-blue-300 hover:text-blue-200"
@@ -900,7 +875,7 @@ export default function Overlay() {
                     <span className={c.collapsed ? 'truncate' : ''}>Q: {c.question}</span>
                   </button>
                   <button
-                    onClick={() => setCards((cs) => cs.filter((x) => x.id !== c.id))}
+                    onClick={() => setCards((cs) => removeCard(cs, c.id))}
                     title="Remove this answer"
                     className="shrink-0 rounded p-0.5 text-neutral-600 hover:text-red-300"
                   >
