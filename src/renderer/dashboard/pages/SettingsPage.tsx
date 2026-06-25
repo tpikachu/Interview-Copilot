@@ -365,10 +365,18 @@ function ModelsCard({ settings, onSaved }: { settings: AppSettings; onSaved: () 
   useEffect(() => setOverrides(settings.models ?? {}), [settings.models]);
   useEffect(() => setPreset(settings.modelPreset ?? 'balanced'), [settings.modelPreset]);
 
-  // Switch the cost/quality preset. Per-task overrides below still win on top.
+  // True once a per-task model override diverges from the active preset's table —
+  // the config is then "Custom" rather than one of the named presets.
+  const customized = Object.entries(overrides).some(
+    ([k, v]) => v && v.trim() && v !== (settings.modelDefaults?.[k] ?? ''),
+  );
+
+  // Switch the cost/quality preset. Picking one is a clean switch — it clears the
+  // per-task overrides, so the config matches the preset (no lingering "Custom").
   const selectPreset = async (p: string) => {
     setPreset(p);
-    await api.settings.set({ modelPreset: p });
+    setOverrides({});
+    await api.settings.set({ modelPreset: p, models: {} });
     await onSaved();
     setStatus(`Preset: ${PRESET_OPTIONS.find((o) => o.value === p)?.label ?? p}.`);
   };
@@ -434,7 +442,7 @@ function ModelsCard({ settings, onSaved }: { settings: AppSettings; onSaved: () 
               key={p.value}
               onClick={() => void selectPreset(p.value)}
               className={`flex-1 rounded-md px-3 py-2 text-center transition-colors ${
-                preset === p.value
+                !customized && preset === p.value
                   ? 'bg-indigo-600 text-white'
                   : 'text-neutral-300 hover:bg-neutral-800'
               }`}
@@ -443,6 +451,21 @@ function ModelsCard({ settings, onSaved }: { settings: AppSettings; onSaved: () 
               <span className="block text-[10px] opacity-70">{p.hint}</span>
             </button>
           ))}
+          {/* Custom: auto-selected when a per-task model override diverges from the
+              preset. Not directly selectable — pick a preset or "Reset" to clear it. */}
+          <div
+            title={
+              customized
+                ? 'Per-task model overrides differ from the preset. Pick a preset or “Reset to defaults” to clear.'
+                : 'Override any task below to create a custom configuration.'
+            }
+            className={`flex-1 rounded-md px-3 py-2 text-center ${
+              customized ? 'bg-indigo-600 text-white' : 'text-neutral-600'
+            }`}
+          >
+            <span className="block text-sm font-medium">Custom</span>
+            <span className="block text-[10px] opacity-70">Your overrides</span>
+          </div>
         </div>
         <p className="mt-1.5 text-xs text-neutral-500">
           The live answer &amp; question detection stay on fast, non-reasoning models in every preset
