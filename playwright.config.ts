@@ -6,6 +6,8 @@ import 'dotenv/config'; // loads .env → process.env (incl. OPENAI_API_KEY for 
 export default defineConfig({
   testDir: './e2e',
   globalSetup: './e2e/global-setup.ts', // mirror migrations into out/main/drizzle
+  // The README-screenshot capture is opt-in (it needs a key + writes to docs/images).
+  testIgnore: process.env.E2E_CAPTURE ? [] : ['**/*.capture.spec.ts'],
   fullyParallel: false, // each test launches its own Electron instance + shares one local DB
   workers: 1,
   retries: 0,
