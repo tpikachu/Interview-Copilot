@@ -52,6 +52,9 @@ interface LiveSessionState {
   ask: (question: string) => Promise<void>;
 }
 
+// Cap the in-memory transcript so a long session can't grow it without bound.
+const MAX_TRANSCRIPT = 500;
+
 // --- audio capture singletons (outside React) ---
 let ctx: AudioContext | null = null;
 let node: ScriptProcessorNode | null = null;
@@ -84,7 +87,11 @@ export const useLiveSession = create<LiveSessionState>((set, get) => {
     const d = p as { text: string; speaker: string; isFinal: boolean };
     if (d.isFinal) {
       set((s) => ({
-        transcript: [...s.transcript, { id: lineId++, speaker: d.speaker, text: d.text }],
+        // Cap the backing array — a multi-hour interview would otherwise accumulate
+        // thousands of line objects in memory (the UI only renders the last ~300).
+        transcript: [...s.transcript, { id: lineId++, speaker: d.speaker, text: d.text }].slice(
+          -MAX_TRANSCRIPT,
+        ),
         interim: '',
       }));
     } else {
@@ -94,7 +101,10 @@ export const useLiveSession = create<LiveSessionState>((set, get) => {
   api.events.onQuestionDetected((p) => {
     const d = p as { text: string };
     set((s) => ({
-      transcript: [...s.transcript, { id: lineId++, speaker: 'detected question', text: d.text }],
+      transcript: [
+        ...s.transcript,
+        { id: lineId++, speaker: 'detected question', text: d.text },
+      ].slice(-MAX_TRANSCRIPT),
     }));
   });
   api.events.onSavePrompt((p) => set({ pendingSave: p }));

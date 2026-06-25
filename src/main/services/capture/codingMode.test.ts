@@ -11,6 +11,9 @@ vi.mock('../openai/coding', () => ({
 vi.mock('../openai/vision', () => ({
   solveFromImages: vi.fn(() => (async function* () {})()),
 }));
+// codingMode imports normalizeOpenAIError from the client, which transitively loads
+// electron (app.isPackaged) — stub it so the import chain stays node-safe.
+vi.mock('../openai/client', () => ({ normalizeOpenAIError: (e: unknown) => String(e) }));
 
 import { addCapture, clearCaptures, solveCaptures } from './codingMode';
 import { broadcast } from '../../ipc/broadcast';

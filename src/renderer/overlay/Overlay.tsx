@@ -153,12 +153,16 @@ export default function Overlay() {
         // History on: collapse prior cards and add a fresh one. Off: replace.
         setCards((cs) => addCard(cs, makeCard(cardId.current++, text), historyEnabledRef.current));
         // Mirror the dashboard: surface the detected question in the transcript too.
-        setTranscript((t) => [...t, { id: lineId.current++, speaker: 'detected question', text }]);
+        setTranscript((t) =>
+          [...t, { id: lineId.current++, speaker: 'detected question', text }].slice(-MAX_LINES * 2),
+        );
       }),
       api.events.onTranscriptDelta((p) => {
         const d = p as { text: string; speaker: string; isFinal: boolean };
         if (d.isFinal) {
-          setTranscript((t) => [...t, { id: lineId.current++, speaker: d.speaker, text: d.text }]);
+          setTranscript((t) =>
+            [...t, { id: lineId.current++, speaker: d.speaker, text: d.text }].slice(-MAX_LINES * 2),
+          );
           setInterim('');
         } else {
           setInterim((s) => s + d.text);
@@ -905,7 +909,7 @@ export default function Overlay() {
           <input
             value={askText}
             onChange={(e) => setAskText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && sendAsk()}
+            onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && sendAsk()}
             placeholder="Ask a question…"
             className="min-w-0 flex-1 rounded-md border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-100 outline-none focus:border-indigo-500"
           />
@@ -918,30 +922,6 @@ export default function Overlay() {
         </div>
       )}
 
-      {/* Talking points + resume match (expanded mode) */}
-      {mode === 'expanded' && meta && (
-        <div className="mt-2 shrink-0 space-y-1.5 border-t border-neutral-800 pt-2 text-xs" style={noDrag}>
-          {meta.talkingPoints.length > 0 && (
-            <ul className="list-disc space-y-0.5 pl-4 text-neutral-300">
-              {meta.talkingPoints.map((t, i) => (
-                <li key={i}>{t}</li>
-              ))}
-            </ul>
-          )}
-          {meta.resumeMatch && (
-            <p className="text-neutral-400">
-              <span className="text-neutral-500">Resume: </span>
-              {meta.resumeMatch}
-            </p>
-          )}
-          {meta.followupQuestion && (
-            <p className="text-neutral-400">
-              <span className="text-neutral-500">Ask back: </span>
-              {meta.followupQuestion}
-            </p>
-          )}
-        </div>
-      )}
 
       {meta?.riskWarning && (
         <p className="mt-2 shrink-0 rounded bg-amber-900/40 px-2 py-1 text-[11px] text-amber-300" style={noDrag}>
@@ -1139,7 +1119,12 @@ function Btn(props: {
           ? 'bg-neutral-700 text-white'
           : 'text-neutral-400 hover:bg-neutral-700/70 hover:text-neutral-200';
   return (
-    <button title={props.title} onClick={props.onClick} className={`${base} ${tone}`}>
+    <button
+      title={props.title}
+      aria-label={props.title}
+      onClick={props.onClick}
+      className={`${base} ${tone}`}
+    >
       {props.children}
     </button>
   );
