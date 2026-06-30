@@ -85,6 +85,19 @@ describe('streamAnswer — request body', () => {
     expect(userPrompt()).toContain('(resume) Fixed a race condition');
   });
 
+  it('numbers the context so answers can cite [i]', async () => {
+    await collect(streamAnswer(baseInput()));
+    expect(userPrompt()).toContain('[1] (resume) Fixed a race condition');
+  });
+
+  it('instructs inline [i] citations + a fabrication guard (system prompt)', async () => {
+    await collect(streamAnswer(baseInput()));
+    const system = String((h.lastBody!.input as { role: string; content: string }[])[0].content);
+    expect(system).toMatch(/cite/i);
+    expect(system).toContain('[1]');
+    expect(system).toMatch(/FABRICATION GUARD|⚠/);
+  });
+
   it('notes when there is NO matching context', async () => {
     await collect(streamAnswer(baseInput({ contextChunks: [] })));
     expect(userPrompt()).toContain('no relevant profile context found');

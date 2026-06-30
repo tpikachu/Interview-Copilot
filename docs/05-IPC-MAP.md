@@ -81,6 +81,7 @@ independently.
 | `jobs:get` | `{ id }` | `Job` |
 | `jobs:save` | `{ id?, profileId, title, company, jdUrl, jdText, companyUrl, notes }` | `{ job, keyMissing, embedded, companyResearched, companyError }` (create or update; parses JD + indexes when a key exists. `jdUrl` is reference-only. If `companyUrl` is set, best-effort scrapes + parses the company site into `parsed_company` and indexes it as `company` chunks; failures surface in `companyError`, not as an error) |
 | `jobs:set-notes` | `{ id, notes }` | `{ job }` (updates the free-form client notes) |
+| `jobs:brief` | `{ id }` | `InterviewBrief` (grounded pre-interview prep brief from the profile's parsed résumé × the job's parsed JD × parsed company research — likely questions, coverage gaps, strengths, company angles. Not persisted; regenerated on demand. Throws a guidance error if the key, parsed résumé, or parsed JD is missing) |
 | `jobs:delete` | `{ id }` | `{ deleted: true }` |
 
 ### notes
@@ -89,6 +90,16 @@ independently.
 | `notes:list` | `{ profileId }` | `Note[]` |
 | `notes:create` | `{ profileId, content }` | `Note` |
 | `notes:delete` | `{ id }` | `{ deleted: true }` |
+
+### stories
+The per-profile STAR story bank (`Story[]`). Stories are extracted from the parsed
+résumé, persisted, and indexed as `story` chunks so they ground live answers.
+| Channel | Request | Response |
+|---|---|---|
+| `stories:list` | `{ profileId }` | `Story[]` |
+| `stories:generate` | `{ profileId }` | `Story[]` (extract grounded STAR stories from the résumé; **embeds first, then atomically replaces** rows + chunks + embeddings — a failed embedding or empty extraction leaves the prior bank intact. Throws without a key / parsed résumé) |
+| `stories:update` | `{ id, patch: { title?, situation?, task?, action?, result? } }` | `Story` (edit one story's text; re-indexes) |
+| `stories:delete` | `{ id }` | `{ deleted: true }` (re-indexes) |
 
 ### session
 | Channel | Request | Response |
@@ -125,6 +136,17 @@ Runs as a non-persisted live session (`isMock`) that's deleted on end — never 
 | `mock:start` | `{ profileId, voice, jobId, interviewType }` | `{ session, question, audioBase64, index, total }` (opens the Cue Card; Q1 spoken + answered) |
 | `mock:next` | `{ sessionId }` | `{ done, question?, audioBase64?, index, total }` (next question — spoken + answered in the Cue Card) |
 | `mock:end` | `{ sessionId }` | `{ ended }` (stops + deletes the mock session) |
+
+### sparring (two-way voice mock)
+A back-and-forth voice drill: the AI asks aloud, the candidate answers by speaking
+(push-to-talk), and each answer is coached. State is in-memory only (ephemeral — nothing
+persisted; no DB session, no Cue Card).
+| Channel | Request | Response |
+|---|---|---|
+| `sparring:start` | `{ profileId, voice, jobId, interviewType }` | `{ sessionId, question, audioBase64, index, total }` (asks Q1 aloud) |
+| `sparring:answer` | `{ sessionId, audioBase64, mime }` | `{ transcript, feedback }` (transcribes the recorded clip + returns `SparringFeedback`) |
+| `sparring:next` | `{ sessionId }` | `{ done, question?, audioBase64?, index, total }` (history-aware follow-up, spoken) |
+| `sparring:end` | `{ sessionId }` | `{ ended }` (clears the in-memory session) |
 
 ### capture / coding
 | Channel | Request | Response |

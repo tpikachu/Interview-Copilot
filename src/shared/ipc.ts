@@ -54,12 +54,19 @@ export const IPC = {
     get: 'jobs:get',
     save: 'jobs:save', // create or update + parse + index
     setNotes: 'jobs:set-notes', // update just the client notes (no re-parse)
+    brief: 'jobs:brief', // generate a grounded pre-interview prep brief
     delete: 'jobs:delete',
   },
   notes: {
     list: 'notes:list',
     create: 'notes:create',
     delete: 'notes:delete',
+  },
+  stories: {
+    list: 'stories:list',
+    generate: 'stories:generate', // extract STAR stories from the résumé (replaces all)
+    update: 'stories:update', // edit one story's text
+    delete: 'stories:delete',
   },
   session: {
     start: 'session:start',
@@ -87,6 +94,12 @@ export const IPC = {
     start: 'mock:start',
     next: 'mock:next',
     end: 'mock:end',
+  },
+  sparring: {
+    start: 'sparring:start', // two-way voice mock: ask the first question
+    answer: 'sparring:answer', // transcribe the spoken answer + return coaching feedback
+    next: 'sparring:next', // ask the next (follow-up) question
+    end: 'sparring:end',
   },
   capture: {
     region: 'capture:region',

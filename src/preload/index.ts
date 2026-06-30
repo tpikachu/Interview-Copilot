@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { EVENTS, IPC } from '@shared/ipc';
 import type { AnswerPrefs, ClientInfo, SavePrompt, UpdateStatus } from '@shared/ipc';
+import type { InterviewBrief, SparringFeedback, Story } from '@shared/types';
 import type { Result } from '@shared/result';
 
 /** invoke + unwrap the Result envelope so renderer code uses normal try/catch. */
@@ -105,6 +106,7 @@ const api = {
         companyError: string | null;
       }>(IPC.jobs.save, input),
     setNotes: (id: string, notes: string | null) => invoke(IPC.jobs.setNotes, { id, notes }),
+    brief: (id: string) => invoke<InterviewBrief>(IPC.jobs.brief, { id }),
     delete: (id: string) => invoke(IPC.jobs.delete, { id }),
   },
   notes: {
@@ -112,6 +114,21 @@ const api = {
     create: (profileId: string, content: string) =>
       invoke(IPC.notes.create, { profileId, content }),
     delete: (id: string) => invoke(IPC.notes.delete, { id }),
+  },
+  stories: {
+    list: (profileId: string) => invoke<Story[]>(IPC.stories.list, { profileId }),
+    generate: (profileId: string) => invoke<Story[]>(IPC.stories.generate, { profileId }),
+    update: (
+      id: string,
+      patch: {
+        title?: string;
+        situation?: string;
+        task?: string;
+        action?: string;
+        result?: string;
+      },
+    ) => invoke<Story>(IPC.stories.update, { id, patch }),
+    delete: (id: string) => invoke<{ deleted: true }>(IPC.stories.delete, { id }),
   },
   session: {
     start: (
@@ -182,6 +199,25 @@ const api = {
         total: number;
       }>(IPC.mock.next, { sessionId }),
     end: (sessionId: string) => invoke<{ ended: true }>(IPC.mock.end, { sessionId }),
+  },
+  sparring: {
+    start: (profileId: string, voice: string, jobId: string | null, interviewType: string) =>
+      invoke<{ sessionId: string; question: string; audioBase64: string; index: number; total: number }>(
+        IPC.sparring.start,
+        { profileId, voice, jobId, interviewType },
+      ),
+    answer: (sessionId: string, audioBase64: string, mime: string) =>
+      invoke<{ transcript: string; feedback: SparringFeedback }>(IPC.sparring.answer, {
+        sessionId,
+        audioBase64,
+        mime,
+      }),
+    next: (sessionId: string) =>
+      invoke<{ done: boolean; question?: string; audioBase64?: string; index: number; total: number }>(
+        IPC.sparring.next,
+        { sessionId },
+      ),
+    end: (sessionId: string) => invoke<{ ended: true }>(IPC.sparring.end, { sessionId }),
   },
   capture: {
     region: () => invoke<{ image: string }>(IPC.capture.region),

@@ -129,7 +129,7 @@ export function Badge({
   tone = 'neutral',
   children,
 }: {
-  tone?: 'neutral' | 'green' | 'amber' | 'blue';
+  tone?: 'neutral' | 'green' | 'amber' | 'blue' | 'red';
   children: React.ReactNode;
 }) {
   const tones: Record<string, string> = {
@@ -137,6 +137,7 @@ export function Badge({
     green: 'bg-green-900/40 text-green-300',
     amber: 'bg-amber-900/40 text-amber-300',
     blue: 'bg-blue-900/40 text-blue-300',
+    red: 'bg-red-900/40 text-red-300',
   };
   return (
     <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${tones[tone]}`}>

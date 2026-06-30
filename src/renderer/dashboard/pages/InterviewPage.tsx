@@ -8,6 +8,7 @@ import type { InterviewType, Job, SessionDetail, SessionListItem } from '@shared
 import { Badge, Button, Card, Field, Modal, Page, Select } from '../../components/ui';
 import { DataTable, type Column } from '../../components/DataTable';
 import { JobFormModal } from '../JobFormModal';
+import { BriefModal } from '../BriefModal';
 import { SampleQuestions } from '../SampleQuestions';
 import { PlayIcon, PlusIcon } from '../../components/icons';
 
@@ -44,6 +45,7 @@ export default function InterviewPage() {
   const [jobsLoading, setJobsLoading] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editJob, setEditJob] = useState<Job | null>(null); // null => create
+  const [briefJob, setBriefJob] = useState<Job | null>(null); // open => prep-brief modal
 
   // Latest session per job, so each row offers Start (none yet) or Resume.
   const [sessionsByJob, setSessionsByJob] = useState<Map<string, SessionListItem>>(new Map());
@@ -226,7 +228,7 @@ export default function InterviewPage() {
     {
       key: 'actions',
       header: '',
-      className: 'w-52 text-right',
+      className: 'w-72 text-right',
       render: (j) => {
         const isLive = !!session && session.jobId === j.id;
         const prior = sessionsByJob.get(j.id);
@@ -261,6 +263,14 @@ export default function InterviewPage() {
                 <PlayIcon /> Start
               </Button>
             )}
+            <Button
+              variant="ghost"
+              disabled={!j.parsedJd}
+              title={j.parsedJd ? 'Pre-interview prep brief' : 'Add a job description first'}
+              onClick={() => setBriefJob(j)}
+            >
+              Brief
+            </Button>
             <Button variant="ghost" onClick={() => openDetail(j)}>
               Detail
             </Button>
@@ -400,6 +410,9 @@ export default function InterviewPage() {
         onSaved={onJobSaved}
         onDeleted={onJobDeleted}
       />
+
+      {/* Pre-interview prep brief (résumé × JD × company), generated on open. */}
+      <BriefModal open={!!briefJob} job={briefJob} onClose={() => setBriefJob(null)} />
 
       {/* Save-or-discard the interview that just ended. */}
       <Modal

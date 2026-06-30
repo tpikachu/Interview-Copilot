@@ -11,7 +11,8 @@ them for cosine search.
 profiles 1───* documents 1───* chunks ──* embeddings
    │                                   (1:1 chunk:embedding)
    ├──* notes
-   ├──* jobs ────* chunks            (JD + company-research chunks carry job_id; resume/note chunks have job_id null)
+   ├──* stories                      (STAR stories; also indexed as `story` chunks, job_id null)
+   ├──* jobs ────* chunks            (JD + company-research chunks carry job_id; resume/note/story chunks have job_id null)
    │       └──── sessions            (a session optionally references the job it's for)
    └──* sessions 1──* transcript_chunks
                  1──* detected_questions 1──* ai_answers
@@ -67,12 +68,20 @@ Uploaded file metadata + parsed text.
 Freeform additional notes attached to a profile.
 | id | profile_id FK | content | created_at |
 
+### `stories`
+Reusable STAR stories extracted from the résumé, tagged by competency + skills.
+Profile-level (reused across every interview); also indexed as `story` chunks so
+they can ground live answers.
+| id | profile_id FK | title | situation | task | action | result | competencies (json[]) | skills (json[]) | created_at | updated_at |
+
 ### `chunks`
-Chunked text from documents/notes/profile fields for RAG.
-| id | profile_id FK | job_id FK (nullable) | source_type (resume/jd/note/company) | source_id | ord | content | token_count | created_at |
+Chunked text from documents/notes/profile fields/stories for RAG.
+| id | profile_id FK | job_id FK (nullable) | source_type (resume/jd/note/company/story) | source_id | ord | content | token_count | created_at |
 
 `job_id` is set on JD **and** company-research chunks (both cascade on job
-delete); resume/note chunks have `job_id` null.
+delete); resume/note/story chunks have `job_id` null. `story` chunks are managed
+by `indexStories` (one chunk per story) and are deliberately **excluded** from the
+résumé/notes re-index, so re-saving a résumé doesn't wipe the curated story bank.
 
 ### `embeddings`
 | id | chunk_id FK (unique) | model | dim | vector BLOB | created_at |
@@ -106,14 +115,14 @@ Known keys:
 - `tour_done` — `'1'` once the first-run guided tour is completed/skipped.
 
 ## Deletion semantics
-Deleting a profile cascades to its documents, notes, jobs, chunks, embeddings,
-sessions, and everything under sessions (FK `on delete cascade`). Deleting a job
+Deleting a profile cascades to its documents, notes, stories, jobs, chunks,
+embeddings, sessions, and everything under sessions (FK `on delete cascade`). Deleting a job
 cascades to its JD chunks and nulls `sessions.job_id` (the session history is
 kept). Original uploaded files in `userData/documents/` are removed by the
 documents service.
 
 ## Indexes
-- `chunks(profile_id)`, `jobs(profile_id)`, `embeddings(chunk_id)`,
-  `transcript_chunks(session_id)`, `detected_questions(session_id)`,
-  `ai_answers(question_id)`, `sessions(profile_id)`, `documents(profile_id)`,
-  `notes(profile_id)`.
+- `chunks(profile_id)`, `jobs(profile_id)`, `stories(profile_id)`,
+  `embeddings(chunk_id)`, `transcript_chunks(session_id)`,
+  `detected_questions(session_id)`, `ai_answers(question_id)`,
+  `sessions(profile_id)`, `documents(profile_id)`, `notes(profile_id)`.
