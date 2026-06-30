@@ -82,6 +82,17 @@ export interface ParsedCompany {
   interviewAngles: string[]; // ways to tailor answers to this company
 }
 
+/** A pre-interview prep brief: a résumé × JD × company gap analysis generated
+ *  locally-grounded before the call. All fields draw ONLY from the candidate's
+ *  parsed résumé, the job's parsed JD, and parsed company research. */
+export interface InterviewBrief {
+  summary: string; // 1–2 sentence framing of what this interview will probe
+  likelyQuestions: { question: string; why: string }[]; // ranked, each tied to a JD/résumé signal
+  gaps: { requirement: string; coverage: 'strong' | 'partial' | 'missing'; howToAddress: string }[];
+  strengths: { point: string; evidence: string }[]; // résumé highlights that map to the JD
+  companyAngles: string[]; // ways to tailor answers to this company
+}
+
 export interface Document {
   id: string;
   profileId: string;

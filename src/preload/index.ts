@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { EVENTS, IPC } from '@shared/ipc';
 import type { AnswerPrefs, ClientInfo, SavePrompt, UpdateStatus } from '@shared/ipc';
+import type { InterviewBrief } from '@shared/types';
 import type { Result } from '@shared/result';
 
 /** invoke + unwrap the Result envelope so renderer code uses normal try/catch. */
@@ -105,6 +106,7 @@ const api = {
         companyError: string | null;
       }>(IPC.jobs.save, input),
     setNotes: (id: string, notes: string | null) => invoke(IPC.jobs.setNotes, { id, notes }),
+    brief: (id: string) => invoke<InterviewBrief>(IPC.jobs.brief, { id }),
     delete: (id: string) => invoke(IPC.jobs.delete, { id }),
   },
   notes: {

@@ -2,7 +2,9 @@ import { z } from 'zod';
 import { IPC } from '@shared/ipc';
 import { handle, zId } from './helpers';
 import { jobsRepo } from '../db/repositories/jobs.repo';
+import { profilesRepo } from '../db/repositories/profiles.repo';
 import { parseCompany, parseJobDescription } from '../services/openai/parsing';
+import { generateBrief } from '../services/openai/brief';
 import { fetchCompanySite } from '../services/documents/companyResearch';
 import { indexJob } from '../services/rag/indexProfile';
 import { apiKeyStore } from '../services/security/apiKey';
@@ -98,6 +100,29 @@ export function registerJobsIpc(): void {
     z.object({ id: z.string().min(1), notes: z.string().nullable() }),
     ({ id, notes }) => jobsRepo.update(id, { notes }),
   );
+
+  // Generate a grounded pre-interview brief from the profile's résumé × the job's
+  // JD × any company research. Reuses the parsed structures (no re-parse); returns
+  // the brief to the renderer (not persisted — it's regenerated on demand).
+  handle(IPC.jobs.brief, zId, async ({ id }) => {
+    const job = jobsRepo.get(id);
+    if (!job) throw new Error('Interview not found.');
+    if (!apiKeyStore.isPresent())
+      throw new Error('Add your OpenAI API key in Settings to generate a brief.');
+    if (!job.parsedJd)
+      throw new Error('This interview needs a parsed job description first — add a JD in Detail.');
+    const profile = profilesRepo.get(job.profileId);
+    if (!profile?.parsedResume)
+      throw new Error('This profile needs a parsed résumé first — add & parse one on the profile.');
+
+    return generateBrief({
+      targetRole: profile.targetRole,
+      company: job.company,
+      resume: profile.parsedResume,
+      jd: job.parsedJd,
+      companyResearch: job.parsedCompany,
+    });
+  });
 
   handle(IPC.jobs.delete, zId, ({ id }) => {
     jobsRepo.delete(id);

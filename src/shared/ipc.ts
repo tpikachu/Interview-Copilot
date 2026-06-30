@@ -54,6 +54,7 @@ export const IPC = {
     get: 'jobs:get',
     save: 'jobs:save', // create or update + parse + index
     setNotes: 'jobs:set-notes', // update just the client notes (no re-parse)
+    brief: 'jobs:brief', // generate a grounded pre-interview prep brief
     delete: 'jobs:delete',
   },
   notes: {

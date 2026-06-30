@@ -55,6 +55,18 @@ Uses Responses API with a JSON instruction to return typed JSON (defensively def
   from text scraped off the company website (see `services/documents/companyResearch.ts`),
   used to tailor answers to the company.
 
+### brief.ts — `generateBrief(input) => InterviewBrief`
+Powers the **Pre-Interview Brief**. Input is the candidate's parsed résumé, the job's
+parsed JD, and (optionally) parsed company research. One Responses call (`parsing` model,
+`json_object`) returns a grounded study brief — `summary`, ranked `likelyQuestions`
+(`{question, why}`), `gaps` (`{requirement, coverage: strong|partial|missing, howToAddress}`),
+`strengths` (`{point, evidence}`), and `companyAngles`. Output is defensively defaulted and
+coverage is normalized, so a malformed response can't crash callers. The system prompt
+forbids inventing experience/employers/metrics/company facts — thin data yields fewer items,
+not fabrication. The `jobs:brief` handler gathers résumé+JD+company from the repos and guards
+on key/résumé/JD presence; the brief is returned (not persisted) and shown in the dashboard's
+`BriefModal`.
+
 ### embeddings.ts — `embed(texts: string[]) => Float32Array[]`
 Batches inputs, returns vectors; caller stores BLOBs. Records model + dim.
 

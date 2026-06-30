@@ -81,6 +81,7 @@ independently.
 | `jobs:get` | `{ id }` | `Job` |
 | `jobs:save` | `{ id?, profileId, title, company, jdUrl, jdText, companyUrl, notes }` | `{ job, keyMissing, embedded, companyResearched, companyError }` (create or update; parses JD + indexes when a key exists. `jdUrl` is reference-only. If `companyUrl` is set, best-effort scrapes + parses the company site into `parsed_company` and indexes it as `company` chunks; failures surface in `companyError`, not as an error) |
 | `jobs:set-notes` | `{ id, notes }` | `{ job }` (updates the free-form client notes) |
+| `jobs:brief` | `{ id }` | `InterviewBrief` (grounded pre-interview prep brief from the profile's parsed résumé × the job's parsed JD × parsed company research — likely questions, coverage gaps, strengths, company angles. Not persisted; regenerated on demand. Throws a guidance error if the key, parsed résumé, or parsed JD is missing) |
 | `jobs:delete` | `{ id }` | `{ deleted: true }` |
 
 ### notes
