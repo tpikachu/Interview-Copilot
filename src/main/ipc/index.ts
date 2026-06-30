@@ -7,6 +7,7 @@ import { registerNotesIpc } from './notes.ipc';
 import { registerStoriesIpc } from './stories.ipc';
 import { registerSessionIpc } from './session.ipc';
 import { registerMockIpc } from './mock.ipc';
+import { registerSparringIpc } from './sparring.ipc';
 import { registerCaptureIpc } from './capture.ipc';
 import { registerOverlayIpc } from './overlay.ipc';
 import { registerWindowIpc } from './window.ipc';
@@ -25,6 +26,7 @@ export function registerIpc(): void {
   registerStoriesIpc();
   registerSessionIpc();
   registerMockIpc();
+  registerSparringIpc();
   registerCaptureIpc();
   registerOverlayIpc();
   registerWindowIpc();

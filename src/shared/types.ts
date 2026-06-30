@@ -124,6 +124,17 @@ export type StoryDraft = Pick<
 
 export type StoryInput = Omit<Story, 'id' | 'createdAt' | 'updatedAt'>;
 
+/** Coaching feedback on one spoken answer in a Sparring (two-way voice mock)
+ *  round. Grounded in the candidate's actual answer + their résumé/JD — specific
+ *  and constructive, never invented. */
+export interface SparringFeedback {
+  verdict: string; // one-sentence overall take
+  rating: number; // 1–5 (how strong the answer was)
+  strengths: string[]; // what landed well
+  improvements: string[]; // concrete things to do better next time
+  tip: string; // one actionable pointer (e.g. a résumé item they could have used)
+}
+
 /** A pre-interview prep brief: a résumé × JD × company gap analysis generated
  *  locally-grounded before the call. All fields draw ONLY from the candidate's
  *  parsed résumé, the job's parsed JD, and parsed company research. */

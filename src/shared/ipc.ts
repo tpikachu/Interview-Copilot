@@ -95,6 +95,12 @@ export const IPC = {
     next: 'mock:next',
     end: 'mock:end',
   },
+  sparring: {
+    start: 'sparring:start', // two-way voice mock: ask the first question
+    answer: 'sparring:answer', // transcribe the spoken answer + return coaching feedback
+    next: 'sparring:next', // ask the next (follow-up) question
+    end: 'sparring:end',
+  },
   capture: {
     region: 'capture:region',
     openSelector: 'capture:open-selector',

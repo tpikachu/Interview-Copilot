@@ -137,6 +137,17 @@ Runs as a non-persisted live session (`isMock`) that's deleted on end — never 
 | `mock:next` | `{ sessionId }` | `{ done, question?, audioBase64?, index, total }` (next question — spoken + answered in the Cue Card) |
 | `mock:end` | `{ sessionId }` | `{ ended }` (stops + deletes the mock session) |
 
+### sparring (two-way voice mock)
+A back-and-forth voice drill: the AI asks aloud, the candidate answers by speaking
+(push-to-talk), and each answer is coached. State is in-memory only (ephemeral — nothing
+persisted; no DB session, no Cue Card).
+| Channel | Request | Response |
+|---|---|---|
+| `sparring:start` | `{ profileId, voice, jobId, interviewType }` | `{ sessionId, question, audioBase64, index, total }` (asks Q1 aloud) |
+| `sparring:answer` | `{ sessionId, audioBase64, mime }` | `{ transcript, feedback }` (transcribes the recorded clip + returns `SparringFeedback`) |
+| `sparring:next` | `{ sessionId }` | `{ done, question?, audioBase64?, index, total }` (history-aware follow-up, spoken) |
+| `sparring:end` | `{ sessionId }` | `{ ended }` (clears the in-memory session) |
+
 ### capture / coding
 | Channel | Request | Response |
 |---|---|---|

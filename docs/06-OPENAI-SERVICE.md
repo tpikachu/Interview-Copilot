@@ -132,6 +132,19 @@ them — the buffer + thumbnail strip live in `capture/codingMode.ts` (see `capt
 Power the mock-interview mode: `generateQuestion` produces the next question and
 per-answer feedback; `speak` renders the interviewer's voice (returns audio Buffer).
 
+### feedback.ts — `evaluateAnswer(input) => SparringFeedback`
+Powers **Sparring** (the two-way voice mock). Given the question, the candidate's
+transcribed spoken answer, and their résumé/JD context, one Responses call
+(`mock` model, `json_object`) returns coaching feedback — `verdict`, a 1–5 `rating`,
+`strengths[]`, `improvements[]`, and one actionable `tip` (ideally naming a real résumé
+item they could have used). Output is defensively parsed: the rating is rounded + clamped
+to 1–5, arrays are string-filtered, and missing fields default — a malformed model reply
+can't crash the turn loop. The prompt judges ONLY what the candidate actually said and
+forbids inventing experience. The `sparringManager` (in-memory, no DB) drives the turns:
+`generateQuestion` + `speak` to ask, `transcribeChunk` on the recorded clip, then
+`evaluateAnswer`; the question is committed to history only after TTS succeeds so a
+transient failure can't skip a turn.
+
 ## Cross-cutting
 - **Cost/usage**: each call returns token usage; persisted on `ai_answers.tokens`
   and surfaced in the UI ("what was sent to OpenAI").

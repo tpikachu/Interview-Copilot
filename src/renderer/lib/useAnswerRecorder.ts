@@ -8,6 +8,9 @@ export function useAnswerRecorder() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  // Set true when stop() is called while start() is still acquiring the mic, so the
+  // in-flight start can release the just-granted stream instead of leaking a hot mic.
+  const stopRequestedRef = useRef(false);
 
   const mime = () => {
     const c = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
@@ -16,6 +19,7 @@ export function useAnswerRecorder() {
 
   const start = useCallback(async () => {
     setError(null);
+    stopRequestedRef.current = false;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -25,6 +29,12 @@ export function useAnswerRecorder() {
           channelCount: 1,
         },
       });
+      // A stop was requested while the permission/getUserMedia await was pending —
+      // release the stream immediately rather than starting an orphaned recorder.
+      if (stopRequestedRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
       streamRef.current = stream;
       chunksRef.current = [];
       const recorder = new MediaRecorder(stream, { mimeType: mime() });
@@ -42,6 +52,8 @@ export function useAnswerRecorder() {
       new Promise<{ buffer: ArrayBuffer; mime: string } | null>((resolve) => {
         const recorder = recorderRef.current;
         if (!recorder || recorder.state === 'inactive') {
+          // No live recorder yet — if a start() is mid-flight, tell it to bail.
+          stopRequestedRef.current = true;
           resolve(null);
           return;
         }

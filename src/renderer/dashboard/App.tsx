@@ -8,6 +8,7 @@ import ProfilesPage from './pages/ProfilesPage';
 import ProfileEditorPage from './pages/ProfileEditorPage';
 import InterviewPage from './pages/InterviewPage';
 import MockPage from './pages/MockPage';
+import SparringPage from './pages/SparringPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 import WhatsNewPage from './pages/WhatsNewPage';
@@ -16,6 +17,7 @@ import { Titlebar } from './Titlebar';
 import { SidebarStatus } from './SidebarStatus';
 import { UpdateBanner } from './UpdateBanner';
 import {
+  BoltIcon,
   DatabaseIcon,
   MockIcon,
   ReportIcon,
@@ -32,6 +34,7 @@ const navItems = [
   { to: '/profiles', label: 'Profiles', Icon: UserIcon, tour: 'nav-profiles' },
   { to: '/interview', label: 'Interview', Icon: MicIcon, tour: 'nav-session' },
   { to: '/mock', label: 'Mock Interview', Icon: MockIcon, tour: 'nav-mock' },
+  { to: '/sparring', label: 'Sparring', Icon: BoltIcon, tour: 'nav-sparring' },
   { to: '/reports', label: 'Reports', Icon: ReportIcon, tour: 'nav-reports' },
   { to: '/settings', label: 'Settings', Icon: SettingsIcon, tour: 'nav-settings' },
   ...(DEV ? [{ to: '/dev', label: 'DB Explorer', Icon: DatabaseIcon, tour: 'nav-dev' }] : []),
@@ -133,6 +136,7 @@ export default function App() {
           <Route path="/profiles/:id" element={<ProfileEditorPage />} />
           <Route path="/interview" element={<InterviewPage />} />
           <Route path="/mock" element={<MockPage />} />
+          <Route path="/sparring" element={<SparringPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/whats-new" element={<WhatsNewPage />} />
