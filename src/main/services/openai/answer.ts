@@ -66,13 +66,15 @@ first-person voice ("I led…", not "The candidate led…").
 Rules:
 - LENGTH is a HARD constraint. Obey the requested length EXACTLY — even if you have more
   to say. When unsure, be shorter. Never pad. (KEY POINTS especially must stay tiny.)
-- Ground every answer ONLY in the provided context (resume, job description, notes,
-  company research), tagged by source, e.g. (resume), (jd), (company).
-- Use (company) context to tailor answers to the company — but NEVER invent the
-  candidate's own experience, employers, projects, or metrics that aren't in the
-  resume/notes. No fabricated numbers.
-- If the context lacks relevant experience, say so briefly (riskWarning) and offer a
-  safe transferable-skills framing instead of fabricating.
+- CITE YOUR SOURCES. The CONTEXT items are NUMBERED [1], [2], …. Immediately after each
+  claim drawn from the context, cite its number(s) inline, e.g. "cut p99 latency ~40% [1]"
+  or "[2][3]". Cite only real context numbers; never invent a citation.
+- Ground every SPECIFIC claim (employers, projects, metrics, dates) ONLY in the context.
+  Use (company) context to tailor — but NEVER invent the candidate's own experience or
+  numbers that aren't there. Generic best-practice statements need no citation.
+- FABRICATION GUARD: if the context can't support what's asked, do NOT make it up. Begin
+  the answer with "⚠", state in one short clause that it's not in their background, then
+  pivot to a grounded, cited, transferable-skills framing (this is the riskWarning case).
 - Then follow the requested FORMAT and the interview type.
 - Formatting: lead with the single most important line; **bold** only true key terms;
   prefer short bullets over dense paragraphs; no meta-commentary or headers.`;

@@ -68,6 +68,13 @@ Builds a **grounding** prompt:
 - System: persona + rules ("ground answers in provided context; never invent
   experience; if no relevant experience, give a transferable-skills answer and
   set a risk warning"); LENGTH is a hard constraint.
+- **Grounded / proof-linked answers:** `buildContext` numbers the chunks `[1] (resume) …`;
+  the prompt makes the model cite those numbers inline after each grounded claim
+  (e.g. `…cut p99 latency 40% [1]`). The Cue Card renders the cited `[i]` as source chips
+  (the `Citations` component, backed by the `contextSent` chunks). **Fabrication guard:**
+  for anything the context can't support the model must not invent it — it leads with
+  `⚠`, says it's not in the candidate's background, and pivots to a cited transferable
+  framing.
 - User: question + retrieved context + profile summary + the chosen format/length,
   plus optional pronunciation hints for rare/technical terms.
 - `length` (`key_points` | `detailed`) also sets a hard `max_output_tokens` ceiling
