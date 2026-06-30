@@ -67,6 +67,20 @@ not fabrication. The `jobs:brief` handler gathers résumé+JD+company from the r
 on key/résumé/JD presence; the brief is returned (not persisted) and shown in the dashboard's
 `BriefModal`.
 
+### stories.ts — `generateStories(input) => StoryDraft[]`
+Powers the **STAR Story Bank**. From the candidate's parsed résumé (+ raw text), one
+Responses call (`parsing` model, `json_object`) extracts 4–8 reusable STAR stories, each
+tagged with 1–3 competencies from a **closed set** (`COMPETENCIES`, kept in sync with the
+`StoryCompetency` union) plus demonstrated skills. Output is defensively parsed: competencies
+are clamped to the closed set, non-string skills dropped, and stories missing
+title/situation/action/result are filtered out (so a degenerate response yields fewer/zero
+stories, never a crash). The system prompt forbids inventing employers/projects/metrics.
+The `stories:generate` handler bails if extraction is empty, then `replaceStories`
+(`rag/indexProfile.ts`) **embeds first and commits rows + `story` chunks + embeddings in one
+transaction** — a failed embedding leaves the prior bank intact. `indexStories` re-embeds on
+edit/delete with the same embed-before-mutate guarantee. Stories surface live as `📖 story`
+source chips via the normal retriever (they're just `story` chunks).
+
 ### embeddings.ts — `embed(texts: string[]) => Float32Array[]`
 Batches inputs, returns vectors; caller stores BLOBs. Records model + dim.
 

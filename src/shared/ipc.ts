@@ -62,6 +62,12 @@ export const IPC = {
     create: 'notes:create',
     delete: 'notes:delete',
   },
+  stories: {
+    list: 'stories:list',
+    generate: 'stories:generate', // extract STAR stories from the résumé (replaces all)
+    update: 'stories:update', // edit one story's text
+    delete: 'stories:delete',
+  },
   session: {
     start: 'session:start',
     resume: 'session:resume',

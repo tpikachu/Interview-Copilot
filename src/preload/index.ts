@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { EVENTS, IPC } from '@shared/ipc';
 import type { AnswerPrefs, ClientInfo, SavePrompt, UpdateStatus } from '@shared/ipc';
-import type { InterviewBrief } from '@shared/types';
+import type { InterviewBrief, Story } from '@shared/types';
 import type { Result } from '@shared/result';
 
 /** invoke + unwrap the Result envelope so renderer code uses normal try/catch. */
@@ -114,6 +114,21 @@ const api = {
     create: (profileId: string, content: string) =>
       invoke(IPC.notes.create, { profileId, content }),
     delete: (id: string) => invoke(IPC.notes.delete, { id }),
+  },
+  stories: {
+    list: (profileId: string) => invoke<Story[]>(IPC.stories.list, { profileId }),
+    generate: (profileId: string) => invoke<Story[]>(IPC.stories.generate, { profileId }),
+    update: (
+      id: string,
+      patch: {
+        title?: string;
+        situation?: string;
+        task?: string;
+        action?: string;
+        result?: string;
+      },
+    ) => invoke<Story>(IPC.stories.update, { id, patch }),
+    delete: (id: string) => invoke<{ deleted: true }>(IPC.stories.delete, { id }),
   },
   session: {
     start: (

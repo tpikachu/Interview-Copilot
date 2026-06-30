@@ -91,6 +91,16 @@ independently.
 | `notes:create` | `{ profileId, content }` | `Note` |
 | `notes:delete` | `{ id }` | `{ deleted: true }` |
 
+### stories
+The per-profile STAR story bank (`Story[]`). Stories are extracted from the parsed
+résumé, persisted, and indexed as `story` chunks so they ground live answers.
+| Channel | Request | Response |
+|---|---|---|
+| `stories:list` | `{ profileId }` | `Story[]` |
+| `stories:generate` | `{ profileId }` | `Story[]` (extract grounded STAR stories from the résumé; **embeds first, then atomically replaces** rows + chunks + embeddings — a failed embedding or empty extraction leaves the prior bank intact. Throws without a key / parsed résumé) |
+| `stories:update` | `{ id, patch: { title?, situation?, task?, action?, result? } }` | `Story` (edit one story's text; re-indexes) |
+| `stories:delete` | `{ id }` | `{ deleted: true }` (re-indexes) |
+
 ### session
 | Channel | Request | Response |
 |---|---|---|

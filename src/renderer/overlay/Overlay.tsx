@@ -1129,7 +1129,7 @@ function Citations({
                   : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
               }`}
             >
-              [{n}] {chunks[n - 1].sourceType}
+              [{n}] {chunks[n - 1].sourceType === 'story' ? '📖 story' : chunks[n - 1].sourceType}
             </button>
           );
         })}

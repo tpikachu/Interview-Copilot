@@ -17,7 +17,7 @@ export type AnswerStyle = 'default' | 'star' | 'technical' | 'conversational';
 export type AnswerLength = 'key_points' | 'detailed';
 
 export type DocumentKind = 'resume' | 'jd' | 'note' | 'other';
-export type ChunkSource = 'resume' | 'jd' | 'note' | 'company';
+export type ChunkSource = 'resume' | 'jd' | 'note' | 'company' | 'story';
 export type SessionStatus = 'idle' | 'live' | 'stopped';
 export type Speaker = 'interviewer' | 'candidate' | 'unknown';
 
@@ -81,6 +81,48 @@ export interface ParsedCompany {
   recentNews: string[];
   interviewAngles: string[]; // ways to tailor answers to this company
 }
+
+/** Closed set of behavioral competencies a STAR story can demonstrate. Closed
+ *  (not free-form) so tags stay consistent and filterable. Keep in sync with
+ *  COMPETENCIES in services/openai/stories.ts. */
+export type StoryCompetency =
+  | 'leadership'
+  | 'teamwork'
+  | 'conflict'
+  | 'failure'
+  | 'ambiguity'
+  | 'impact'
+  | 'technical_depth'
+  | 'communication'
+  | 'ownership'
+  | 'problem_solving'
+  | 'growth'
+  | 'customer_focus';
+
+/** A reusable STAR (Situation/Task/Action/Result) story extracted from the
+ *  candidate's résumé, tagged by competency + demonstrated skills. Grounded —
+ *  never invented. Profile-level and reused across every interview. */
+export interface Story {
+  id: string;
+  profileId: string;
+  title: string;
+  situation: string;
+  task: string;
+  action: string;
+  result: string;
+  competencies: StoryCompetency[];
+  skills: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** A story as produced by the extractor (no identity/timestamps yet). */
+export type StoryDraft = Pick<
+  Story,
+  'title' | 'situation' | 'task' | 'action' | 'result' | 'competencies' | 'skills'
+>;
+
+export type StoryInput = Omit<Story, 'id' | 'createdAt' | 'updatedAt'>;
 
 /** A pre-interview prep brief: a résumé × JD × company gap analysis generated
  *  locally-grounded before the call. All fields draw ONLY from the candidate's

@@ -4,6 +4,7 @@ import { api } from '../../lib/api';
 import type { AppSettings, Profile } from '@shared/types';
 import { Badge, BusyOverlay, Button, Card, Field, Page, TextArea, TextInput } from '../../components/ui';
 import { ChevronLeftIcon, UploadIcon } from '../../components/icons';
+import { StoryBankModal } from '../StoryBankModal';
 
 export default function ProfileEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -14,6 +15,13 @@ export default function ProfileEditorPage() {
   const [resumeText, setResumeText] = useState('');
   const [busyMsg, setBusyMsg] = useState<string | null>(null);
   const [status, setStatus] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+  const [storyOpen, setStoryOpen] = useState(false);
+  const [storyCount, setStoryCount] = useState(0);
+
+  const loadStoryCount = useCallback(async () => {
+    if (!id) return;
+    setStoryCount((await api.stories.list(id)).length);
+  }, [id]);
 
   const refresh = useCallback(async () => {
     if (!id) return;
@@ -23,7 +31,8 @@ export default function ProfileEditorPage() {
     setRole(p.targetRole);
     setResumeText(p.resumeText ?? '');
     setKeyPresent(((await api.settings.get()) as AppSettings).apiKeyPresent);
-  }, [id]);
+    await loadStoryCount();
+  }, [id, loadStoryCount]);
 
   useEffect(() => {
     void refresh();
@@ -120,6 +129,34 @@ export default function ProfileEditorPage() {
         </Field>
       </Card>
 
+      <Card className="mb-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-medium">Story Bank</h3>
+              {storyCount > 0 && (
+                <Badge tone="blue">
+                  {storyCount} {storyCount === 1 ? 'story' : 'stories'}
+                </Badge>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-neutral-500">
+              Reusable STAR stories from your résumé — rehearse them, and they ground your live
+              answers.
+            </p>
+          </div>
+          <Button
+            variant="default"
+            className="shrink-0"
+            disabled={!profile.parsedResume}
+            title={profile.parsedResume ? 'Manage your STAR stories' : 'Parse a résumé first'}
+            onClick={() => setStoryOpen(true)}
+          >
+            Manage stories
+          </Button>
+        </div>
+      </Card>
+
       <div className="sticky bottom-0 flex items-center justify-between gap-4 rounded-xl border border-neutral-800 bg-neutral-900/90 px-4 py-3 backdrop-blur">
         <span className="text-sm">
           {status ? (
@@ -132,6 +169,14 @@ export default function ProfileEditorPage() {
           {keyPresent ? 'Save & parse' : 'Save'}
         </Button>
       </div>
+
+      <StoryBankModal
+        open={storyOpen}
+        profile={profile}
+        keyPresent={keyPresent}
+        onClose={() => setStoryOpen(false)}
+        onChanged={() => void loadStoryCount()}
+      />
     </Page>
   );
 }

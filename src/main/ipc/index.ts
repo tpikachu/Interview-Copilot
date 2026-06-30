@@ -4,6 +4,7 @@ import { registerProfilesIpc } from './profiles.ipc';
 import { registerDocumentsIpc } from './documents.ipc';
 import { registerJobsIpc } from './jobs.ipc';
 import { registerNotesIpc } from './notes.ipc';
+import { registerStoriesIpc } from './stories.ipc';
 import { registerSessionIpc } from './session.ipc';
 import { registerMockIpc } from './mock.ipc';
 import { registerCaptureIpc } from './capture.ipc';
@@ -21,6 +22,7 @@ export function registerIpc(): void {
   registerDocumentsIpc();
   registerJobsIpc();
   registerNotesIpc();
+  registerStoriesIpc();
   registerSessionIpc();
   registerMockIpc();
   registerCaptureIpc();

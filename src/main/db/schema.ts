@@ -73,6 +73,29 @@ export const jobs = sqliteTable(
   (t) => ({ byProfile: index('jobs_profile_idx').on(t.profileId) }),
 );
 
+// Reusable STAR stories extracted from the candidate's résumé, tagged by
+// competency + demonstrated skills. Profile-level (reused across all interviews);
+// also indexed as `story` chunks so they can ground live answers.
+export const stories = sqliteTable(
+  'stories',
+  {
+    id: text('id').primaryKey(),
+    profileId: text('profile_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    title: text('title').notNull().default(''),
+    situation: text('situation').notNull().default(''),
+    task: text('task').notNull().default(''),
+    action: text('action').notNull().default(''),
+    result: text('result').notNull().default(''),
+    competencies: text('competencies'), // json[] — closed competency set
+    skills: text('skills'), // json[]
+    createdAt: integer('created_at').notNull().default(now),
+    updatedAt: integer('updated_at').notNull().default(now),
+  },
+  (t) => ({ byProfile: index('stories_profile_idx').on(t.profileId) }),
+);
+
 export const chunks = sqliteTable(
   'chunks',
   {
@@ -80,9 +103,9 @@ export const chunks = sqliteTable(
     profileId: text('profile_id')
       .notNull()
       .references(() => profiles.id, { onDelete: 'cascade' }),
-    // Resume/notes chunks have jobId null; JD chunks belong to a specific job.
+    // Resume/notes/story chunks have jobId null; JD chunks belong to a specific job.
     jobId: text('job_id').references(() => jobs.id, { onDelete: 'cascade' }),
-    sourceType: text('source_type').notNull(), // resume | jd | note
+    sourceType: text('source_type').notNull(), // resume | jd | note | company | story
     sourceId: text('source_id'),
     ord: integer('ord').notNull().default(0),
     content: text('content').notNull(),
