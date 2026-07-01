@@ -1,11 +1,10 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
-import type { AnswerPrefs, ClientInfo } from '@shared/ipc';
+import type { ClientInfo } from '@shared/ipc';
 import type {
-  AnswerLength,
+  AnswerFormat,
   AnswerMetaEvent,
-  AnswerStyle,
   AppSettings,
   ContextSentEvent,
   InterviewType,
@@ -21,6 +20,7 @@ import {
   removeCard,
   toggleCollapsed,
 } from './answerCards';
+import { splitPronunciation } from './pronunciation';
 import {
   BoltIcon,
   ChevronRightIcon,
@@ -84,9 +84,8 @@ export default function Overlay() {
   const [showClient, setShowClient] = useState(false);
   // Live answer controls (mirrored to the active session via setAnswerPrefs).
   const [interviewType, setInterviewType] = useState<InterviewType>('general');
-  const [format, setFormat] = useState<AnswerStyle>('default');
-  const [length, setLength] = useState<AnswerLength>('key_points');
-  const [pronunciation, setPronunciation] = useState(false);
+  const [answerFormat, setAnswerFormat] = useState<AnswerFormat>('key_points');
+  const [pronunciation, setPronunciation] = useState(true);
   // Coding sessions default to listen-only (don't auto-answer the interviewer, so a
   // generated coding answer isn't replaced). This toggle (coding-only) flips it on.
   const [answerInterviewer, setAnswerInterviewer] = useState(false);
@@ -100,6 +99,7 @@ export default function Overlay() {
   // Switchable live so a hard problem can be bumped to a stronger model on the spot.
   const [codingModel, setCodingModel] = useState('');
   const [codingEffort, setCodingEffort] = useState('');
+  const [codingLanguage, setCodingLanguage] = useState('javascript');
   const [codingDefaults, setCodingDefaults] = useState({ model: 'gpt-5-mini', effort: 'low' });
   // The full override maps, so saving the coding pick doesn't clobber other tasks'.
   const modelsRef = useRef<Record<string, string>>({});
@@ -234,8 +234,7 @@ export default function Overlay() {
       }),
       api.events.onAnswerPrefs((p) => {
         setInterviewType(p.interviewType);
-        setFormat(p.style);
-        setLength(p.length);
+        setAnswerFormat(p.format);
         setPronunciation(p.pronunciation);
       }),
       api.events.onAudioLevel((p) => {
@@ -255,6 +254,7 @@ export default function Overlay() {
       effortsRef.current = ss.reasoningEfforts ?? {};
       setCodingModel(ss.models?.coding ?? '');
       setCodingEffort(ss.reasoningEfforts?.coding ?? '');
+      setCodingLanguage(ss.codingLanguage ?? 'javascript');
       setCodingDefaults({
         model: ss.modelDefaults?.coding ?? 'gpt-5-mini',
         effort: ss.reasoningEffortDefaults?.coding ?? 'low',
@@ -310,14 +310,9 @@ export default function Overlay() {
     await api.session.setAnswerPrefs({ interviewType: t });
     if (question) await api.session.regenerate();
   };
-  const changeFormat = async (f: AnswerStyle) => {
-    setFormat(f);
-    await api.session.setAnswerPrefs({ style: f });
-    if (question) await api.session.regenerate();
-  };
-  const changeLength = async (l: AnswerLength) => {
-    setLength(l);
-    await api.session.setAnswerPrefs({ length: l });
+  const changeFormat = async (f: AnswerFormat) => {
+    setAnswerFormat(f);
+    await api.session.setAnswerPrefs({ format: f });
     if (question) await api.session.regenerate();
   };
   const togglePronunciation = async () => {
@@ -664,44 +659,29 @@ export default function Overlay() {
               ))}
             </select>
           </label>
-          <label className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-neutral-500">
-            Format
-            <select
-              value={format}
-              onChange={(e) => changeFormat(e.target.value as AnswerStyle)}
-              className={ctrlSelect}
-            >
-              <option value="default">Default</option>
-              <option value="conversational">Conversational</option>
-              <option value="star">STAR</option>
-              <option value="technical">Technical</option>
-            </select>
-          </label>
           <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-neutral-500">
-            Length
+            Format
             <span className="flex overflow-hidden rounded-md ring-1 ring-neutral-700">
-              <button
-                onClick={() => changeLength('key_points')}
-                title="Short, key-point-focused answers"
-                className={`px-2 py-1 text-[11px] font-medium normal-case transition-colors ${
-                  length === 'key_points'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-neutral-800 text-neutral-400 hover:text-neutral-200'
-                }`}
-              >
-                Key points
-              </button>
-              <button
-                onClick={() => changeLength('detailed')}
-                title="Thorough, very detailed answers"
-                className={`px-2 py-1 text-[11px] font-medium normal-case transition-colors ${
-                  length === 'detailed'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-neutral-800 text-neutral-400 hover:text-neutral-200'
-                }`}
-              >
-                Detailed
-              </button>
+              {(
+                [
+                  ['key_points', 'Key points', 'Short, glanceable key points'],
+                  ['explanation', 'Explanation', 'A natural, spoken explanation'],
+                  ['detailed', 'Detailed', 'Thorough, with a concrete example'],
+                ] as const
+              ).map(([value, label, title]) => (
+                <button
+                  key={value}
+                  onClick={() => changeFormat(value)}
+                  title={title}
+                  className={`px-2 py-1 text-[11px] font-medium normal-case transition-colors ${
+                    answerFormat === value
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-neutral-800 text-neutral-400 hover:text-neutral-200'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </span>
           </span>
           {interviewType === 'coding' && (
@@ -891,13 +871,14 @@ export default function Overlay() {
                 {!c.collapsed && (
                   <div className="mt-0.5 leading-relaxed">
                     {c.answer ? (
-                      <Markdown>{c.answer}</Markdown>
+                      <Markdown>{splitPronunciation(c.answer).body}</Markdown>
                     ) : isCurrent && live && !paused ? (
                       <span className="text-xs text-neutral-500">Listening…</span>
                     ) : null}
                     {c.streaming && <span className="ml-0.5 animate-pulse">▋</span>}
                     <StoryCue card={c} />
                     <Citations card={c} openKey={openCite} onToggle={setOpenCite} />
+                    <PronunciationGuide card={c} />
                   </div>
                 )}
               </div>
@@ -1015,6 +996,36 @@ export default function Overlay() {
                 Coding solver
               </p>
               <label className="block">
+                <span className="mb-1 block text-xs font-medium text-neutral-400">Language</span>
+                <select
+                  value={codingLanguage}
+                  onChange={(e) => {
+                    setCodingLanguage(e.target.value);
+                    void api.settings.set({ codingLanguage: e.target.value });
+                  }}
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-indigo-500"
+                >
+                  {[
+                    'javascript',
+                    'typescript',
+                    'python',
+                    'java',
+                    'c++',
+                    'c#',
+                    'go',
+                    'rust',
+                    'ruby',
+                    'swift',
+                    'kotlin',
+                    'php',
+                  ].map((l) => (
+                    <option key={l} value={l}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
                 <span className="mb-1 block text-xs font-medium text-neutral-400">Model</span>
                 <select
                   value={codingModel}
@@ -1090,6 +1101,31 @@ export default function Overlay() {
           </div>
         </Modal>
       </div>
+    </div>
+  );
+}
+
+/** A structured "how to say it" panel for the hard words in the current answer —
+ *  kept separate from the (natural) answer so the spoken text stays clean. Parsing
+ *  lives in ./pronunciation (splitPronunciation), tolerant of model-output variance. */
+function PronunciationGuide({ card }: { card: AnswerCard }) {
+  const { entries } = splitPronunciation(card.answer);
+  if (entries.length === 0) return null;
+  return (
+    <div className="mt-1.5 space-y-1.5 rounded border border-teal-500/30 bg-teal-500/10 px-1.5 py-1 text-[10px]">
+      <div className="font-medium text-teal-200">🗣 How to say it</div>
+      {entries.map((e, i) => (
+        <div key={i} className="leading-snug text-teal-100/90">
+          <span className="font-semibold text-teal-100">{e.word}</span>
+          <span className="ml-1 text-teal-300/80">{e.say}</span>
+          {(e.pos || e.singular) && (
+            <div className="text-teal-100/70">
+              {e.pos}
+              {e.singular ? ` · singular: ${e.singular}` : ''}
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

@@ -14,6 +14,12 @@ vi.mock('../openai/vision', () => ({
 // codingMode imports normalizeOpenAIError from the client, which transitively loads
 // electron (app.isPackaged) — stub it so the import chain stays node-safe.
 vi.mock('../openai/client', () => ({ normalizeOpenAIError: (e: unknown) => String(e) }));
+// codingMode reads the coding language from settings.repo (→ db → better-sqlite3),
+// which can't load under the node test env — stub it (get → null ⇒ 'javascript' default).
+vi.mock('../../db/repositories/settings.repo', () => ({
+  SETTINGS_KEYS: { codingLanguage: 'coding_language' },
+  settingsRepo: { get: () => null },
+}));
 
 import { addCapture, clearCaptures, solveCaptures } from './codingMode';
 import { broadcast } from '../../ipc/broadcast';
@@ -63,7 +69,7 @@ describe('multi-image capture buffer', () => {
     addCapture('img-2');
     await solveCaptures();
     expect(solveFromImages).toHaveBeenCalledTimes(1);
-    expect(solveFromImages).toHaveBeenCalledWith(['img-1', 'img-2']);
+    expect(solveFromImages).toHaveBeenCalledWith(['img-1', 'img-2'], 'javascript');
     expect(lastBufferImages()).toEqual([]); // buffer cleared after solving
   });
 });

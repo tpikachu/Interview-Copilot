@@ -1,9 +1,7 @@
 import { openai } from './client';
 import { model, reasoningParam } from './models';
-import { CODING_RULES } from './codingPrompt';
+import { codingRules } from './codingPrompt';
 import type { AnswerEvent } from './answer';
-
-const SYSTEM = `You are shown a screenshot containing a coding/technical interview problem (and possibly code). Read it carefully, transcribe the problem accurately, then solve it.\n${CODING_RULES}`;
 
 /**
  * Solve a problem from ONE OR MORE screenshots using the 'coding' model (multimodal,
@@ -15,8 +13,10 @@ const SYSTEM = `You are shown a screenshot containing a coding/technical intervi
  */
 export async function* solveFromImages(
   dataUrls: string[],
+  language: string,
   signal?: AbortSignal,
 ): AsyncGenerator<AnswerEvent> {
+  const system = `You are shown a screenshot containing a coding/technical interview problem (and possibly code). Read it carefully, transcribe the problem accurately, then solve it.\n${codingRules(language)}`;
   const intro =
     dataUrls.length > 1
       ? `The following ${dataUrls.length} images are consecutive, top-to-bottom (possibly ` +
@@ -36,7 +36,7 @@ export async function* solveFromImages(
       model: model('coding'),
       ...reasoningParam('coding'),
       input: [
-        { role: 'system', content: SYSTEM },
+        { role: 'system', content: system },
         { role: 'user', content },
       ],
     },

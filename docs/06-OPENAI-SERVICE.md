@@ -94,11 +94,13 @@ Small/fast model. Returns `{ text, type, confidence, strategy }`. Also used as a
 cheap "is this actually a question?" gate before answer generation.
 
 ### answer.ts — `streamAnswer(input) => AsyncIterable<AnswerEvent>`
-Input: `{ question, contextChunks, profile, style, length, pronunciation, interviewType, signal? }`.
+Input: `{ question, contextChunks, profile, format, pronunciation, interviewType, signal? }`.
 Builds a **grounding** prompt:
 - System: persona + rules ("ground answers in provided context; never invent
   experience; if no relevant experience, give a transferable-skills answer and
-  set a risk warning"); LENGTH is a hard constraint.
+  set a risk warning"); FORMAT is a hard constraint; plus a **naturalness / anti-AI-tone**
+  directive (contractions, varied sentence length, no corporate/AI tells or hedging — must
+  read 100% human, never AI-generated).
 - **Grounded / proof-linked answers:** `buildContext` numbers the chunks `[1] (resume) …`;
   the prompt makes the model cite those numbers inline after each grounded claim
   (e.g. `…cut p99 latency 40% [1]`). The Cue Card renders the cited `[i]` as source chips
@@ -106,10 +108,19 @@ Builds a **grounding** prompt:
   for anything the context can't support the model must not invent it — it leads with
   `⚠`, says it's not in the candidate's background, and pivots to a cited transferable
   framing.
-- User: question + retrieved context + profile summary + the chosen format/length,
-  plus optional pronunciation hints for rare/technical terms.
-- `length` (`key_points` | `detailed`) also sets a hard `max_output_tokens` ceiling
-  (220 / 800) so "key points" can never drift long regardless of the prompt.
+- User: question + retrieved context + profile summary + the chosen answer format.
+- **Pronunciation guide** (v1.2, ON by default, live-toggleable): the answer stays clean
+  (no inline respellings); instead, if any words are genuinely hard, the model appends a
+  `[[PRONUNCIATION]]` section with one pipe-delimited line per word
+  (`word | part of speech | singular | respelling`). The Cue Card splits this out
+  (`overlay/pronunciation.ts` `splitPronunciation`, tolerant of model-output variance) and
+  renders a structured "🗣 How to say it" panel below the answer. Adds +160 `max_output_tokens`
+  headroom so the guide never eats the answer.
+- `format` — the single answer control (v1.2): `key_points` (terse bullets) | `explanation`
+  (a natural, flowing first-person explanation) | `detailed` (thorough, with one example).
+  It also sets a hard `max_output_tokens` ceiling (220 / 340 / 800) so "key points" can never
+  drift long regardless of the prompt. (The old format/tone × length split — `star`/`technical`/
+  `conversational` — was removed.)
 Streams tokens (`{type:'delta', token}`), then a `usage` event, then a structured
 `meta` event `{ talkingPoints[], resumeMatch, star?, clarifyingQuestion?, riskWarning?,
 followupQuestion }`. **Status:** the prose answer + token usage are live; the meta pass
@@ -125,13 +136,19 @@ chunked path and mock-answer audio).
 Realtime API session for delta-level STT latency; PCM is streamed one-way via
 `session:realtime-audio`. Event parsing lives in `realtimeEvents.ts`.
 
-### coding.ts — `solveFromOcr(text)`, vision.ts — `solveFromImages(dataUrls[])`
+### coding.ts — `solveFromOcr(text, language)`, vision.ts — `solveFromImages(dataUrls[], language)`
 Given a coding problem as text (clipboard/selection) or as one-or-more screenshots,
-streams: approach, edge cases, time/space complexity, solution outline (and code).
-Both paths use the same `coding` model + `reasoningParam('coding')`. A long problem
-spans several viewports, so `solveFromImages` sends all captured screenshots in ONE
-request (instruction-first, scroll order, `detail:'high'`) and the model reconstructs
-them — the buffer + thumbnail strip live in `capture/codingMode.ts` (see `capture:add-region`/`solve-buffer`).
+streams (explanation-first): a natural **Approach** paragraph, complexity, edge cases,
+then the **optimal** solution as commented, runnable code. The shared prompt is
+`codingRules(language)` (`codingPrompt.ts`): mandates the optimal solution + stated
+time/space complexity, writes the code in the chosen `language` (default `javascript`,
+a live Cue Card picker persisted as the `codingLanguage` setting), and requires clear
+inline comments. Deliberately **résumé/JD-free** — a coding problem is unrelated to the
+candidate's profile. Both paths use the same `coding` model + `reasoningParam('coding')`.
+A long problem spans several viewports, so `solveFromImages` sends all captured screenshots
+in ONE request (instruction-first, scroll order, `detail:'high'`) and the model reconstructs
+them — the buffer + thumbnail strip + the `codingLanguage` lookup live in
+`capture/codingMode.ts` (see `capture:add-region`/`solve-buffer`).
 
 ### interviewer.ts — `generateQuestion(...)` & tts.ts — `speak(text, voice)`
 Power the mock-interview mode: `generateQuestion` produces the next question and
