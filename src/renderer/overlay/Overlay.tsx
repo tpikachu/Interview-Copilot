@@ -80,6 +80,7 @@ export default function Overlay() {
   const [live, setLive] = useState(false);
   const [showData, setShowData] = useState(false);
   const [openCite, setOpenCite] = useState<string | null>(null); // expanded citation: `${cardId}:${n}`
+  const [copiedId, setCopiedId] = useState<number | null>(null); // card id showing a brief "copied ✓"
   const [privacy, setPrivacy] = useState(true);
   const [clientInfo, setClientInfo] = useState<ClientInfo | null>(null);
   const [showClient, setShowClient] = useState(false);
@@ -359,6 +360,19 @@ export default function Overlay() {
   const regenerateCard = async (card: AnswerCard) => {
     const r = await api.session.regenerate(card.questionId);
     if (!r.regenerated) await api.capture.resolveLast();
+  };
+  // Copy ONE card's answer (its clean body — no pronunciation guide) to the clipboard.
+  // Handy for coding solves: copy the solution, paste into the editor.
+  const copyCard = (card: AnswerCard) => {
+    const text = splitPronunciation(card.answer).body.trim();
+    if (!text) return;
+    void api.overlay
+      .copyText(text)
+      .then(() => {
+        setCopiedId(card.id);
+        window.setTimeout(() => setCopiedId((v) => (v === card.id ? null : v)), 1200);
+      })
+      .catch(() => {});
   };
   const clearAnswer = () => {
     if (flushHandle.current != null) {
@@ -896,6 +910,17 @@ export default function Overlay() {
                     />
                     <span className={c.collapsed ? 'truncate' : ''}>Q: {c.question}</span>
                   </button>
+                  {c.answer && (
+                    <button
+                      onClick={() => copyCard(c)}
+                      title="Copy answer"
+                      className={`shrink-0 rounded p-0.5 ${
+                        copiedId === c.id ? 'text-green-400' : 'text-neutral-600 hover:text-blue-300'
+                      }`}
+                    >
+                      <span className="text-[11px] leading-none">{copiedId === c.id ? '✓' : '⧉'}</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => void regenerateCard(c)}
                     title={c.isCoding ? 'Re-solve this problem' : 'Regenerate this answer'}

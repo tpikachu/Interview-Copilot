@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { clipboard } from 'electron';
 import { IPC } from '@shared/ipc';
 import { handle, NoInput } from './helpers';
 import {
@@ -51,6 +52,13 @@ export function registerOverlayIpc(): void {
       return { enabled };
     },
   );
+
+  // Write text to the OS clipboard from the renderer (the overlay's per-card "Copy").
+  // Routed through main because the renderer's clipboard-write permission is denied.
+  handle(IPC.overlay.copyText, z.object({ text: z.string() }), ({ text }) => {
+    clipboard.writeText(text);
+    return { copied: true as const };
+  });
 
   handle(IPC.privacy.get, NoInput, () => ({ enabled: getPrivacy() }));
   // Disabling privacy is gated by a confirmation dialog (see requestPrivacy).

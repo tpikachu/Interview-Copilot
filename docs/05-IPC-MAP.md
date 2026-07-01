@@ -170,6 +170,7 @@ persisted; no DB session, no Cue Card).
 | `overlay:set-mode` | `{ mode:'compact'\|'expanded' }` | `{ mode }` |
 | `overlay:set-opacity` | `{ opacity }` | `{ opacity }` |
 | `overlay:set-clickthrough` | `{ enabled }` | `{ enabled }` |
+| `overlay:copy-text` | `{ text }` | `{ copied: true }` (write text to the OS clipboard for the per-card "Copy" — routed through main because the renderer's clipboard-write permission is denied) |
 | `privacy:get` | — | `{ enabled }` |
 | `privacy:toggle` | — | `{ enabled }` |
 | `privacy:set` | `{ enabled }` | `{ enabled }` |

@@ -235,6 +235,7 @@ const api = {
     setMode: (mode: 'compact' | 'expanded') => invoke(IPC.overlay.setMode, { mode }),
     setOpacity: (opacity: number) => invoke(IPC.overlay.setOpacity, { opacity }),
     setClickthrough: (enabled: boolean) => invoke(IPC.overlay.setClickthrough, { enabled }),
+    copyText: (text: string) => invoke<{ copied: true }>(IPC.overlay.copyText, { text }),
   },
   privacy: {
     get: () => invoke<{ enabled: boolean }>(IPC.privacy.get),
