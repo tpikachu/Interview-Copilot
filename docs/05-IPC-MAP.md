@@ -122,7 +122,7 @@ résumé, persisted, and indexed as `story` chunks so they ground live answers.
 | `session:set-interview-type` | `{ sessionId, interviewType }` | `{ ok }` (set the session-level type — chosen by the user in the save prompt at stop) |
 | `session:set-answer-prefs` | `{ interviewType?, format?, pronunciation? }` | `{ interviewType, format, pronunciation }` (live Cue Card controls; acts on the active session. Switching `interviewType` is dynamic — it persists onto the session row + reframes later answers) |
 | `session:set-answering` | `{ enabled }` | `{ enabled, answered }` (coding "listen-only" toggle: when disabled, the interviewer is still transcribed but not auto-answered; enabling it also answers the question they just asked) |
-| `session:regenerate` | — | `{ regenerated }` (re-answer the last question for the active session) |
+| `session:regenerate` | `{ questionId? }` | `{ regenerated }` (re-answer a SPECIFIC question by id — the Cue Card's per-card ↻ — or, with no id, the last question after a format/pronunciation toggle) |
 | `session:clear-answer` | — | `{ cleared }` (abort the in-flight answer for the active session) |
 
 ### mock (AI-driven mock interviewer)
@@ -161,6 +161,7 @@ persisted; no DB session, no Cue Card).
 | `capture:add-region` | `{ image }` | `{ added: true }` (add a captured region to the multi-image buffer; broadcasts `capture:buffer`) |
 | `capture:solve-buffer` | — | `{ started: true }` (solve ALL buffered screenshots in one vision call, then clear) |
 | `capture:clear-buffer` | — | `{ cleared: true }` |
+| `capture:resolve-last` | — | `{ started: true }` (re-solve the most recent coding problem — the per-card ↻ on a coding-solve card; picks up the current language) |
 
 ### overlay / privacy
 | Channel | Request | Response |

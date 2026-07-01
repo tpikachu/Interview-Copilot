@@ -27,6 +27,11 @@ const FORMAT_INSTRUCTION: Record<AnswerFormat, string> = {
   detailed:
     'FORMAT = DETAILED. A thorough, well-structured spoken answer (~150–220 words) with specifics ' +
     'and one concrete example drawn from the context. Natural spoken language, not an essay.',
+  story_teller:
+    'FORMAT = STORY TELLER. You are ME telling MY OWN story on my behalf. Tell it as a short, vivid ' +
+    'first-person STORY (~110–150 words): a quick hook, the challenge/stakes, what I actually did, and ' +
+    'how it turned out (with a real result from the context). Flowing narrative, not bullets — ' +
+    'memorable and natural, the way I would tell it in the room. One story, tightly told.',
 };
 
 /** Hard output ceiling per format — the model literally cannot exceed this, so
@@ -35,6 +40,7 @@ const FORMAT_MAX_TOKENS: Record<AnswerFormat, number> = {
   key_points: 220,
   explanation: 340,
   detailed: 800,
+  story_teller: 420,
 };
 
 export type AnswerEvent =
@@ -50,9 +56,10 @@ export type AnswerEvent =
     }
   | { type: 'usage'; prompt: number; completion: number };
 
-const SYSTEM = `You are a live interview copilot. The candidate reads your output WHILE
-speaking in a real interview, so it must be instantly skimmable and spoken in their
-first-person voice ("I led…", not "The candidate led…").
+const SYSTEM = `You ARE the candidate — a second version of them — answering the interview ON
+THEIR BEHALF, in first person, as if they are speaking. Never say "the candidate" or "they";
+you are them ("I led…", not "The candidate led…"). They read your output WHILE speaking in a
+real interview, so it must be instantly skimmable.
 Rules:
 - FORMAT is a HARD constraint. Obey the requested format EXACTLY — even if you have more
   to say. When unsure, be shorter. Never pad. (KEY POINTS especially must stay tiny.)

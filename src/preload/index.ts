@@ -150,7 +150,8 @@ const api = {
       invoke<{ ok: true }>(IPC.session.setInterviewType, { sessionId, interviewType }),
     setAnswering: (enabled: boolean) =>
       invoke<{ enabled: boolean; answered: boolean }>(IPC.session.setAnswering, { enabled }),
-    regenerate: () => invoke<{ regenerated: boolean }>(IPC.session.regenerate),
+    regenerate: (questionId?: string) =>
+      invoke<{ regenerated: boolean }>(IPC.session.regenerate, { questionId }),
     clearAnswer: () => invoke<{ cleared: boolean }>(IPC.session.clearAnswer),
     stop: (sessionId: string) => invoke(IPC.session.stop, { sessionId }),
     togglePause: (sessionId: string) => invoke(IPC.session.togglePause, { sessionId }),
@@ -224,6 +225,7 @@ const api = {
     addRegion: (image: string) => invoke<{ added: true }>(IPC.capture.addRegion, { image }),
     solveBuffer: () => invoke<{ started: true }>(IPC.capture.solveBuffer),
     clearBuffer: () => invoke<{ cleared: true }>(IPC.capture.clearBuffer),
+    resolveLast: () => invoke<{ started: true }>(IPC.capture.resolveLast),
   },
   overlay: {
     show: () => invoke(IPC.overlay.show),

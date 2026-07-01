@@ -116,9 +116,12 @@ Builds a **grounding** prompt:
   (`overlay/pronunciation.ts` `splitPronunciation`, tolerant of model-output variance) and
   renders a structured "🗣 How to say it" panel below the answer. Adds +160 `max_output_tokens`
   headroom so the guide never eats the answer.
+- **Persona:** the system prompt frames the model as the candidate themselves — "You ARE the
+  candidate … answering ON THEIR BEHALF, in first person" — never third-person.
 - `format` — the single answer control (v1.2): `key_points` (terse bullets) | `explanation`
-  (a natural, flowing first-person explanation) | `detailed` (thorough, with one example).
-  It also sets a hard `max_output_tokens` ceiling (220 / 340 / 800) so "key points" can never
+  (a natural, flowing first-person explanation) | `detailed` (thorough, with one example) |
+  `story_teller` (a short, vivid first-person story — "you are ME telling MY OWN story").
+  It also sets a hard `max_output_tokens` ceiling (220 / 340 / 800 / 420) so "key points" can never
   drift long regardless of the prompt. (The old format/tone × length split — `star`/`technical`/
   `conversational` — was removed.)
 Streams tokens (`{type:'delta', token}`), then a `usage` event, then a structured

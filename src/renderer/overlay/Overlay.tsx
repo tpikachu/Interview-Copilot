@@ -15,8 +15,9 @@ import { Modal } from '../components/ui';
 import {
   type AnswerCard,
   addCard,
+  appendById,
   makeCard,
-  patchLast,
+  patchById,
   removeCard,
   toggleCollapsed,
 } from './answerCards';
@@ -130,6 +131,9 @@ export default function Overlay() {
   // ~60×/sec instead of once per token.
   const pendingTokens = useRef('');
   const flushHandle = useRef<number | null>(null);
+  // The questionId whose answer is currently streaming — so buffered tokens flush to
+  // the RIGHT card (routing by id supports regenerating any card, not just the last).
+  const streamingId = useRef('');
 
   useEffect(() => {
     const flush = () => {
@@ -137,7 +141,7 @@ export default function Overlay() {
       if (!pendingTokens.current) return;
       const chunk = pendingTokens.current;
       pendingTokens.current = '';
-      setCards((cs) => patchLast(cs, { answer: (cs[cs.length - 1]?.answer ?? '') + chunk }));
+      setCards((cs) => appendById(cs, streamingId.current, chunk));
     };
     const scheduleFlush = () => {
       if (flushHandle.current == null) flushHandle.current = requestAnimationFrame(flush);
@@ -150,13 +154,22 @@ export default function Overlay() {
 
     cleanup.current.push(
       api.events.onQuestionDetected((p) => {
-        const text = (p as { text: string }).text;
+        const q = p as { id: string; text: string; type?: string };
         cancelFlush();
+        streamingId.current = q.id;
         // History on: collapse prior cards and add a fresh one. Off: replace.
-        setCards((cs) => addCard(cs, makeCard(cardId.current++, text), historyEnabledRef.current));
+        setCards((cs) =>
+          addCard(
+            cs,
+            makeCard(cardId.current++, q.id, q.text, q.type === 'coding'),
+            historyEnabledRef.current,
+          ),
+        );
         // Mirror the dashboard: surface the detected question in the transcript too.
         setTranscript((t) =>
-          [...t, { id: lineId.current++, speaker: 'detected question', text }].slice(-MAX_LINES * 2),
+          [...t, { id: lineId.current++, speaker: 'detected question', text: q.text }].slice(
+            -MAX_LINES * 2,
+          ),
         );
       }),
       api.events.onTranscriptDelta((p) => {
@@ -171,23 +184,40 @@ export default function Overlay() {
         }
       }),
       api.events.onAnswerDelta((p) => {
-        pendingTokens.current += (p as { token: string }).token;
+        const d = p as { questionId: string; token: string };
+        streamingId.current = d.questionId;
+        pendingTokens.current += d.token;
         scheduleFlush();
       }),
-      api.events.onAnswerMeta((p) => setCards((cs) => patchLast(cs, { meta: p as AnswerMetaEvent }))),
-      api.events.onAnswerDone(() => {
+      api.events.onAnswerMeta((p) => {
+        const m = p as AnswerMetaEvent;
+        setCards((cs) => patchById(cs, m.questionId, { meta: m }));
+      }),
+      api.events.onAnswerDone((p) => {
         flush();
-        setCards((cs) => patchLast(cs, { streaming: false }));
+        setCards((cs) => patchById(cs, (p as { questionId: string }).questionId, { streaming: false }));
       }),
-      // Regenerate: clear the current card's answer (transcript untouched) so the
-      // re-streamed tokens don't append to the old answer. Reuses the same card.
-      api.events.onAnswerReset(() => {
+      // Regenerate: clear THAT card's answer (transcript untouched) so the re-streamed
+      // tokens don't append to the old answer. Reuses the same card (routed by id).
+      api.events.onAnswerReset((p) => {
+        const qid = (p as { questionId: string }).questionId;
         cancelFlush();
-        setCards((cs) => patchLast(cs, { answer: '', meta: null, context: null, streaming: true }));
+        streamingId.current = qid;
+        // Also expand it — regenerating a collapsed history card should surface it.
+        setCards((cs) =>
+          patchById(cs, qid, {
+            answer: '',
+            meta: null,
+            context: null,
+            streaming: true,
+            collapsed: false,
+          }),
+        );
       }),
-      api.events.onContextSent((p) =>
-        setCards((cs) => patchLast(cs, { context: p as ContextSentEvent })),
-      ),
+      api.events.onContextSent((p) => {
+        const c = p as ContextSentEvent;
+        setCards((cs) => patchById(cs, c.questionId, { context: c }));
+      }),
       api.events.onCaptureBuffer((p) => setCaptures(p.images)),
       api.events.onSessionError((p) =>
         setSessionError((p as { message?: string }).message || 'Session error.'),
@@ -266,10 +296,12 @@ export default function Overlay() {
     };
   }, []);
 
-  // Derived from the cards list — the newest card is the live/streaming answer.
-  const current = cards[cards.length - 1];
+  // Derived from the cards list. The "focus" card = whichever is currently streaming
+  // (so regenerating an OLDER card still drives the header + transparency panels),
+  // else the newest.
+  const streaming = cards.some((c) => c.streaming);
+  const current = cards.find((c) => c.streaming) ?? cards[cards.length - 1];
   const question = current?.question ?? '';
-  const streaming = !!current?.streaming;
   const meta = current?.meta ?? null;
   const context = current?.context ?? null;
 
@@ -321,7 +353,13 @@ export default function Overlay() {
     await api.session.setAnswerPrefs({ pronunciation: next });
     if (question) await api.session.regenerate();
   };
-  const regenerate = () => void api.session.regenerate();
+  // Regenerate ONE card's answer (its per-card ↻ button). Live-session questions
+  // re-run via the answer pipeline; a coding-solve card isn't a persisted question, so
+  // that returns {regenerated:false} and we re-solve the last coding problem instead.
+  const regenerateCard = async (card: AnswerCard) => {
+    const r = await api.session.regenerate(card.questionId);
+    if (!r.regenerated) await api.capture.resolveLast();
+  };
   const clearAnswer = () => {
     if (flushHandle.current != null) {
       cancelAnimationFrame(flushHandle.current);
@@ -667,6 +705,7 @@ export default function Overlay() {
                   ['key_points', 'Key points', 'Short, glanceable key points'],
                   ['explanation', 'Explanation', 'A natural, spoken explanation'],
                   ['detailed', 'Detailed', 'Thorough, with a concrete example'],
+                  ['story_teller', 'Story', 'A short, vivid first-person story'],
                 ] as const
               ).map(([value, label, title]) => (
                 <button
@@ -715,9 +754,6 @@ export default function Overlay() {
             title="Pronunciation hints for rare / technical words"
           >
             <span className="text-[12px] font-semibold leading-none">æ</span>
-          </Btn>
-          <Btn onClick={regenerate} title="Regenerate this answer">
-            <RefreshIcon className="h-3.5 w-3.5" />
           </Btn>
           <Btn onClick={clearAnswer} title="Clear the answer">
             <TrashIcon className="h-3.5 w-3.5" />
@@ -859,6 +895,13 @@ export default function Overlay() {
                       className={`mt-0.5 h-3 w-3 shrink-0 transition-transform ${c.collapsed ? '' : 'rotate-90'}`}
                     />
                     <span className={c.collapsed ? 'truncate' : ''}>Q: {c.question}</span>
+                  </button>
+                  <button
+                    onClick={() => void regenerateCard(c)}
+                    title={c.isCoding ? 'Re-solve this problem' : 'Regenerate this answer'}
+                    className="shrink-0 rounded p-0.5 text-neutral-600 hover:text-blue-300"
+                  >
+                    <RefreshIcon className="h-3 w-3" />
                   </button>
                   <button
                     onClick={() => setCards((cs) => removeCard(cs, c.id))}

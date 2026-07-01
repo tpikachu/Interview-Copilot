@@ -72,6 +72,12 @@ describe('streamAnswer — request body', () => {
     expect(userPrompt()).toContain('DETAILED');
   });
 
+  it('caps story_teller at 420 output tokens', async () => {
+    await collect(streamAnswer(baseInput({ format: 'story_teller' })));
+    expect(h.lastBody!.max_output_tokens).toBe(420);
+    expect(userPrompt()).toContain('STORY TELLER');
+  });
+
   it('includes the structured pronunciation-guide instruction only when enabled', async () => {
     await collect(streamAnswer(baseInput({ pronunciation: true })));
     expect(userPrompt()).toMatch(/phonetic respelling/i);

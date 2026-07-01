@@ -469,8 +469,14 @@ export const sessionManager = {
         }
       }
     } catch (e) {
-      // Aborted by clear/regenerate — drop this partial answer silently.
-      if (abort.signal.aborted) return { questionId };
+      // Aborted by clear/regenerate — drop this partial answer, but still tell the Cue
+      // Card this question is done so its card stops showing the streaming cursor. (With
+      // per-card regenerate + history, the aborted card may be a DIFFERENT, still-visible
+      // one than the card being regenerated.)
+      if (abort.signal.aborted) {
+        broadcast(EVENTS.answerDone, { questionId });
+        return { questionId };
+      }
       // A real failure (auth, quota, network drop, model-not-found): surface it and
       // clear the Cue Card's streaming state, instead of leaving the card spinning
       // forever with no error (the most common live failure — e.g. an expired key).
@@ -546,18 +552,36 @@ export const sessionManager = {
     };
   },
 
-  /** Re-answer the last question for the active session (e.g. after toggling
-   *  length/format/pronunciation, or via the Cue Card "Regenerate" button).
-   *  Reuses the SAME question row — no new transcript line or DB question. */
-  async regenerateActive(): Promise<{ regenerated: boolean }> {
-    if (!live?.lastQuestion) return { regenerated: false };
-    const q = live.lastQuestion;
+  /** Re-answer a question for the active session — a SPECIFIC one by id (the Cue
+   *  Card's per-card "Regenerate" button) or, with no id, the last question (after
+   *  toggling format/pronunciation). Reuses the SAME question row — no new transcript
+   *  line or DB question. */
+  async regenerate(questionId?: string): Promise<{ regenerated: boolean }> {
+    if (!live) return { regenerated: false };
+    let qid: string;
+    let text: string;
+    if (questionId) {
+      // A specific card: pull its text from its question row (any question in this session).
+      const row = db()
+        .select()
+        .from(schema.detectedQuestions)
+        .where(eq(schema.detectedQuestions.id, questionId))
+        .get();
+      if (!row) return { regenerated: false }; // e.g. an ad-hoc coding-solve card (not persisted)
+      qid = questionId;
+      text = row.text;
+    } else if (live.lastQuestion) {
+      qid = live.lastQuestion.questionId;
+      text = live.lastQuestion.text;
+    } else {
+      return { regenerated: false };
+    }
     // Abort the current answer BEFORE clearing the Cue Card, so a late token from
     // the aborted stream can't land in the cleared answer.
     if (live.answerAbort) live.answerAbort.abort();
-    // Clear the current answer in the Cue Card (without touching the transcript).
-    broadcast(EVENTS.answerReset, { questionId: q.questionId });
-    await this.generateAnswer(live.sessionId, q.questionId, q.text);
+    // Clear that question's answer in the Cue Card (without touching the transcript).
+    broadcast(EVENTS.answerReset, { questionId: qid });
+    await this.generateAnswer(live.sessionId, qid, text);
     return { regenerated: true };
   },
 
