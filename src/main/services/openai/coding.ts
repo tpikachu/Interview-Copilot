@@ -1,23 +1,23 @@
 import { openai } from './client';
 import { model, reasoningParam } from './models';
-import { CODING_RULES } from './codingPrompt';
+import { codingRules } from './codingPrompt';
 import type { AnswerEvent } from './answer';
-
-const SYSTEM = `You solve a coding/technical problem given as plain text.\n${CODING_RULES}`;
 
 /** Stream a coding-mode answer from clipboard/OCR'd problem text. Uses the dedicated
  *  'coding' model (a reasoning model by default) — the same solver as the screenshot
- *  path, so both stay consistently smart. */
+ *  path, so both stay consistently smart. Solution written in `language`. */
 export async function* solveFromOcr(
   text: string,
+  language: string,
   signal?: AbortSignal,
 ): AsyncGenerator<AnswerEvent> {
+  const system = `You solve a coding/technical problem given as plain text.\n${codingRules(language)}`;
   const stream = await openai().responses.stream(
     {
       model: model('coding'),
       ...reasoningParam('coding'),
       input: [
-        { role: 'system', content: SYSTEM },
+        { role: 'system', content: system },
         { role: 'user', content: text.slice(0, 12_000) },
       ],
     },

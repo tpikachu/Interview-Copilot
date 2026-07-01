@@ -130,13 +130,19 @@ chunked path and mock-answer audio).
 Realtime API session for delta-level STT latency; PCM is streamed one-way via
 `session:realtime-audio`. Event parsing lives in `realtimeEvents.ts`.
 
-### coding.ts — `solveFromOcr(text)`, vision.ts — `solveFromImages(dataUrls[])`
+### coding.ts — `solveFromOcr(text, language)`, vision.ts — `solveFromImages(dataUrls[], language)`
 Given a coding problem as text (clipboard/selection) or as one-or-more screenshots,
-streams: approach, edge cases, time/space complexity, solution outline (and code).
-Both paths use the same `coding` model + `reasoningParam('coding')`. A long problem
-spans several viewports, so `solveFromImages` sends all captured screenshots in ONE
-request (instruction-first, scroll order, `detail:'high'`) and the model reconstructs
-them — the buffer + thumbnail strip live in `capture/codingMode.ts` (see `capture:add-region`/`solve-buffer`).
+streams (explanation-first): a natural **Approach** paragraph, complexity, edge cases,
+then the **optimal** solution as commented, runnable code. The shared prompt is
+`codingRules(language)` (`codingPrompt.ts`): mandates the optimal solution + stated
+time/space complexity, writes the code in the chosen `language` (default `javascript`,
+a live Cue Card picker persisted as the `codingLanguage` setting), and requires clear
+inline comments. Deliberately **résumé/JD-free** — a coding problem is unrelated to the
+candidate's profile. Both paths use the same `coding` model + `reasoningParam('coding')`.
+A long problem spans several viewports, so `solveFromImages` sends all captured screenshots
+in ONE request (instruction-first, scroll order, `detail:'high'`) and the model reconstructs
+them — the buffer + thumbnail strip + the `codingLanguage` lookup live in
+`capture/codingMode.ts` (see `capture:add-region`/`solve-buffer`).
 
 ### interviewer.ts — `generateQuestion(...)` & tts.ts — `speak(text, voice)`
 Power the mock-interview mode: `generateQuestion` produces the next question and

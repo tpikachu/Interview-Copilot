@@ -284,6 +284,7 @@ export interface AppSettings {
   reasoningEffortDefaults: Record<string, string>; // built-in reasoning effort per task
   overlay: OverlayPrefs;
   audio: AudioPrefs;
+  codingLanguage: string; // language the coding solver writes solutions in (default 'javascript')
   privacyMode: boolean;
   hideTaskbarIcon: boolean; // keep the app off the taskbar (stealth)
   dataConsentAck: boolean;

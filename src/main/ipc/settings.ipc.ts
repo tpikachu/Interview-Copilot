@@ -35,6 +35,7 @@ function readSettings(): AppSettings {
     reasoningEffortDefaults: { ...defaultEfforts },
     overlay: settingsRepo.getJson(SETTINGS_KEYS.overlayPrefs, defaultOverlay),
     audio: settingsRepo.getJson(SETTINGS_KEYS.audioPrefs, defaultAudio),
+    codingLanguage: settingsRepo.get(SETTINGS_KEYS.codingLanguage) || 'javascript',
     privacyMode: settingsRepo.get(SETTINGS_KEYS.privacyMode) !== '0',
     hideTaskbarIcon: settingsRepo.get(SETTINGS_KEYS.hideTaskbarIcon) === '1',
     dataConsentAck: settingsRepo.get(SETTINGS_KEYS.dataConsentAck) === '1',
@@ -61,6 +62,7 @@ const settingsPatch = z.object({
       micDeviceId: z.string().nullable(),
     })
     .optional(),
+  codingLanguage: z.string().min(1).max(40).optional(),
   dataConsentAck: z.boolean().optional(),
   tourDone: z.boolean().optional(),
   hideTaskbarIcon: z.boolean().optional(),
@@ -84,6 +86,8 @@ export function registerSettingsIpc(): void {
       broadcast(EVENTS.overlayApplySettings, patch.overlay, ['overlay']);
     }
     if (patch.audio) settingsRepo.setJson(SETTINGS_KEYS.audioPrefs, patch.audio);
+    if (patch.codingLanguage !== undefined)
+      settingsRepo.set(SETTINGS_KEYS.codingLanguage, patch.codingLanguage);
     if (patch.hideTaskbarIcon !== undefined) {
       settingsRepo.set(SETTINGS_KEYS.hideTaskbarIcon, patch.hideTaskbarIcon ? '1' : '0');
       getMainWindow()?.setSkipTaskbar(patch.hideTaskbarIcon);

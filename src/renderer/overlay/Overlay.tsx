@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
-import type { AnswerPrefs, ClientInfo } from '@shared/ipc';
+import type { ClientInfo } from '@shared/ipc';
 import type {
   AnswerFormat,
   AnswerMetaEvent,
@@ -98,6 +98,7 @@ export default function Overlay() {
   // Switchable live so a hard problem can be bumped to a stronger model on the spot.
   const [codingModel, setCodingModel] = useState('');
   const [codingEffort, setCodingEffort] = useState('');
+  const [codingLanguage, setCodingLanguage] = useState('javascript');
   const [codingDefaults, setCodingDefaults] = useState({ model: 'gpt-5-mini', effort: 'low' });
   // The full override maps, so saving the coding pick doesn't clobber other tasks'.
   const modelsRef = useRef<Record<string, string>>({});
@@ -252,6 +253,7 @@ export default function Overlay() {
       effortsRef.current = ss.reasoningEfforts ?? {};
       setCodingModel(ss.models?.coding ?? '');
       setCodingEffort(ss.reasoningEfforts?.coding ?? '');
+      setCodingLanguage(ss.codingLanguage ?? 'javascript');
       setCodingDefaults({
         model: ss.modelDefaults?.coding ?? 'gpt-5-mini',
         effort: ss.reasoningEffortDefaults?.coding ?? 'low',
@@ -991,6 +993,36 @@ export default function Overlay() {
               <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
                 Coding solver
               </p>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-neutral-400">Language</span>
+                <select
+                  value={codingLanguage}
+                  onChange={(e) => {
+                    setCodingLanguage(e.target.value);
+                    void api.settings.set({ codingLanguage: e.target.value });
+                  }}
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-indigo-500"
+                >
+                  {[
+                    'javascript',
+                    'typescript',
+                    'python',
+                    'java',
+                    'c++',
+                    'c#',
+                    'go',
+                    'rust',
+                    'ruby',
+                    'swift',
+                    'kotlin',
+                    'php',
+                  ].map((l) => (
+                    <option key={l} value={l}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-neutral-400">Model</span>
                 <select

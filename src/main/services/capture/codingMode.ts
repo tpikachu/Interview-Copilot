@@ -6,6 +6,11 @@ import { solveFromImages } from '../openai/vision';
 import { normalizeOpenAIError } from '../openai/client';
 import type { AnswerEvent } from '../openai/answer';
 import { showOverlay } from '../../windows/overlayWindow';
+import { SETTINGS_KEYS, settingsRepo } from '../../db/repositories/settings.repo';
+
+/** The programming language the solver writes solutions in (Cue Card setting; JS default). */
+const codingLanguage = (): string =>
+  settingsRepo.get(SETTINGS_KEYS.codingLanguage) || 'javascript';
 
 // Accumulated problem screenshots for the current solve. A long problem scrolls
 // past one viewport, so the user captures several (scroll → capture → repeat) and
@@ -41,7 +46,7 @@ export function solveCaptures(): Promise<void> {
     images.length > 1
       ? `Coding problem (${images.length} screenshots)`
       : 'Coding problem (from screenshot)';
-  return streamToOverlay(solveFromImages(images), label);
+  return streamToOverlay(solveFromImages(images, codingLanguage()), label);
 }
 
 async function streamToOverlay(gen: AsyncGenerator<AnswerEvent>, label: string): Promise<void> {
@@ -65,12 +70,15 @@ async function streamToOverlay(gen: AsyncGenerator<AnswerEvent>, label: string):
 
 /** Stream a coding solution from plain text (clipboard). */
 export function runCodingSolve(text: string): Promise<void> {
-  return streamToOverlay(solveFromOcr(text), 'Coding problem (from clipboard)');
+  return streamToOverlay(solveFromOcr(text, codingLanguage()), 'Coding problem (from clipboard)');
 }
 
 /** Stream a coding solution from a single screenshot/region image (OpenAI vision). */
 export function runCodingSolveFromImage(dataUrl: string): Promise<void> {
-  return streamToOverlay(solveFromImages([dataUrl]), 'Coding problem (from screenshot)');
+  return streamToOverlay(
+    solveFromImages([dataUrl], codingLanguage()),
+    'Coding problem (from screenshot)',
+  );
 }
 
 /**

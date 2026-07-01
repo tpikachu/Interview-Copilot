@@ -56,6 +56,7 @@ export const SETTINGS_KEYS = {
   overlayBounds: 'overlay_bounds',
   audioPrefs: 'audio_prefs',
   hideTaskbarIcon: 'hide_taskbar_icon',
+  codingLanguage: 'coding_language',
 } as const;
 
 /** Non-secret settings cleared by a factory reset (everything except the API key). */
@@ -71,4 +72,5 @@ const APP_SETTING_KEYS: string[] = [
   SETTINGS_KEYS.overlayBounds,
   SETTINGS_KEYS.audioPrefs,
   SETTINGS_KEYS.hideTaskbarIcon,
+  SETTINGS_KEYS.codingLanguage,
 ];
