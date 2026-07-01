@@ -112,6 +112,7 @@ export const IPC = {
     addRegion: 'capture:add-region', // add a captured region to the multi-image buffer
     solveBuffer: 'capture:solve-buffer', // solve all buffered screenshots in one call
     clearBuffer: 'capture:clear-buffer',
+    resolveLast: 'capture:resolve-last', // re-solve the most recent coding problem
   },
   overlay: {
     show: 'overlay:show',
@@ -121,6 +122,7 @@ export const IPC = {
     setMode: 'overlay:set-mode',
     setOpacity: 'overlay:set-opacity',
     setClickthrough: 'overlay:set-clickthrough',
+    copyText: 'overlay:copy-text', // write text to the OS clipboard (per-card "Copy")
   },
   privacy: {
     toggle: 'privacy:toggle',

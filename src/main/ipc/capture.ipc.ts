@@ -6,6 +6,7 @@ import {
   addCapture,
   clearCaptures,
   quickSolveFromClipboard,
+  resolveLast,
   runCodingSolve,
   runCodingSolveFromImage,
   solveCaptures,
@@ -66,5 +67,11 @@ export function registerCaptureIpc(): void {
   handle(IPC.capture.clearBuffer, NoInput, () => {
     clearCaptures();
     return { cleared: true as const };
+  });
+
+  // Re-solve the most recent coding problem (the Cue Card's per-card ↻ on a coding card).
+  handle(IPC.capture.resolveLast, NoInput, () => {
+    void resolveLast();
+    return { started: true as const };
   });
 }

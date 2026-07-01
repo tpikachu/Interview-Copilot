@@ -15,7 +15,7 @@ const interviewType = z.enum([
   'sales',
   'general',
 ]);
-const answerFormat = z.enum(['key_points', 'explanation', 'detailed']);
+const answerFormat = z.enum(['key_points', 'explanation', 'detailed', 'story_teller']);
 
 export function registerSessionIpc(): void {
   handle(
@@ -113,7 +113,9 @@ export function registerSessionIpc(): void {
     ({ enabled }) => sessionManager.setAnsweringActive(enabled),
   );
 
-  handle(IPC.session.regenerate, z.void(), () => sessionManager.regenerateActive());
+  handle(IPC.session.regenerate, z.object({ questionId: z.string().optional() }), ({ questionId }) =>
+    sessionManager.regenerate(questionId),
+  );
 
   handle(IPC.session.clearAnswer, z.void(), () => sessionManager.clearAnswerActive());
 

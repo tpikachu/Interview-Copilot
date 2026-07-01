@@ -10,12 +10,14 @@ export type InterviewType =
   | 'general';
 
 /** Answer FORMAT — the single live Cue Card control (v1.2; replaces the old
- *  format/tone × length split). All three read 100% human, never AI-generated.
+ *  format/tone × length split). All read 100% human, never AI-generated.
  *  - `key_points`: short, glanceable — a terse opener + a few key-point bullets.
  *  - `explanation`: a natural, flowing first-person explanation, like talking it
  *    through with someone.
- *  - `detailed`: thorough, with one concrete example. */
-export type AnswerFormat = 'key_points' | 'explanation' | 'detailed';
+ *  - `detailed`: thorough, with one concrete example.
+ *  - `story_teller`: a short, vivid first-person story (hook → challenge → what I
+ *    did → outcome) — memorable, great for behavioral answers. */
+export type AnswerFormat = 'key_points' | 'explanation' | 'detailed' | 'story_teller';
 
 export type DocumentKind = 'resume' | 'jd' | 'note' | 'other';
 export type ChunkSource = 'resume' | 'jd' | 'note' | 'company' | 'story';

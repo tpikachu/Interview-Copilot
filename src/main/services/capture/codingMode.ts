@@ -18,6 +18,9 @@ const codingLanguage = (): string =>
 // request.
 const MAX_CAPTURES = 8;
 let captureBuffer: string[] = [];
+// The most recent solve's input, so the Cue Card's per-card ↻ can re-solve the SAME
+// problem (e.g. after switching language) without re-copying or re-capturing it.
+let lastSolve: { text: string } | { images: string[] } | null = null;
 
 function broadcastBuffer(): void {
   broadcast(EVENTS.captureBuffer, { images: captureBuffer }, ['overlay']);
@@ -40,6 +43,7 @@ export function clearCaptures(): void {
 export function solveCaptures(): Promise<void> {
   if (captureBuffer.length === 0) return Promise.resolve();
   const images = captureBuffer;
+  lastSolve = { images };
   captureBuffer = [];
   broadcastBuffer();
   const label =
@@ -70,15 +74,39 @@ async function streamToOverlay(gen: AsyncGenerator<AnswerEvent>, label: string):
 
 /** Stream a coding solution from plain text (clipboard). */
 export function runCodingSolve(text: string): Promise<void> {
+  lastSolve = { text };
   return streamToOverlay(solveFromOcr(text, codingLanguage()), 'Coding problem (from clipboard)');
 }
 
 /** Stream a coding solution from a single screenshot/region image (OpenAI vision). */
 export function runCodingSolveFromImage(dataUrl: string): Promise<void> {
+  lastSolve = { images: [dataUrl] };
   return streamToOverlay(
     solveFromImages([dataUrl], codingLanguage()),
     'Coding problem (from screenshot)',
   );
+}
+
+/** Re-run the most recent coding solve (same problem) — picks up the current
+ *  language/model/effort, so the user can iterate via the Cue Card's per-card ↻. */
+export function resolveLast(): Promise<void> {
+  if (!lastSolve) {
+    const questionId = crypto.randomUUID();
+    showOverlay();
+    broadcast(EVENTS.questionDetected, { id: questionId, text: 'Re-solve', type: 'coding' }, [
+      'overlay',
+    ]);
+    broadcast(EVENTS.sessionError, { message: 'Nothing to re-solve yet — solve a problem first.' }, [
+      'overlay',
+    ]);
+    broadcast(EVENTS.answerDone, { questionId }, ['overlay']);
+    return Promise.resolve();
+  }
+  const gen =
+    'text' in lastSolve
+      ? solveFromOcr(lastSolve.text, codingLanguage())
+      : solveFromImages(lastSolve.images, codingLanguage());
+  return streamToOverlay(gen, 'Coding problem (re-solve)');
 }
 
 /**
