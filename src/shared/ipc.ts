@@ -66,6 +66,7 @@ export const IPC = {
     page: 'applications:page',
     get: 'applications:get',
     tailor: 'applications:tailor', // the Tailor Resume op: LLM → profile/job/app rows + index
+    exportPdf: 'applications:export-pdf', // tailored resume → ATS-friendly PDF (save dialog)
     delete: 'applications:delete',
   },
   stories: {

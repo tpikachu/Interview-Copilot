@@ -7,6 +7,7 @@ import { jobsRepo } from '../db/repositories/jobs.repo';
 import { tailorApplication } from '../services/openai/tailor';
 import { parseJobDescription, parseResume } from '../services/openai/parsing';
 import { indexJob, reindexProfile } from '../services/rag/indexProfile';
+import { exportResumePdf } from '../services/documents/resumePdf';
 import { apiKeyStore } from '../services/security/apiKey';
 
 export function registerApplicationsIpc(): void {
@@ -112,6 +113,14 @@ export function registerApplicationsIpc(): void {
       return { application: app, embedded };
     },
   );
+
+  // Save the tailored resume as an ATS-friendly PDF (native save dialog).
+  handle(IPC.applications.exportPdf, zId, async ({ id }) => {
+    const app = applicationsRepo.get(id);
+    if (!app) throw new Error('Application not found');
+    const label = `${app.name} - ${app.jobTitle}${app.company ? ` at ${app.company}` : ''}`;
+    return exportResumePdf(app.tailoredResume, label);
+  });
 
   handle(IPC.applications.delete, zId, ({ id }) => {
     applicationsRepo.delete(id);

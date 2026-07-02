@@ -129,6 +129,8 @@ const api = {
       jdText: string;
       questions: string[];
     }) => invoke<{ application: Application; embedded: number }>(IPC.applications.tailor, input),
+    exportPdf: (id: string) =>
+      invoke<{ saved: boolean; filePath?: string }>(IPC.applications.exportPdf, { id }),
     delete: (id: string) => invoke<{ deleted: true }>(IPC.applications.delete, { id }),
   },
   notes: {
