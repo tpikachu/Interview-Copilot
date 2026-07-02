@@ -58,20 +58,29 @@ export function registerApplicationsIpc(): void {
         baseResume = baseResumeText;
       }
 
-      // Model calls first (tailor + JD parse + resume parse for a new profile), so a
-      // failure here leaves the database untouched.
+      // Resolve the OWNING profile up front (reads only): the selected one, or — for
+      // an uploaded/pasted base — an existing profile with the SAME resume text, so
+      // repeat tailorings from one resume reuse it (no duplicate profiles).
+      let owner =
+        existing ??
+        profilesRepo.list().find((p) => (p.resumeText ?? '').trim() === baseResume.trim()) ??
+        null;
+
+      // Model calls first (tailor + JD parse + resume parse), so a failure here
+      // leaves the database untouched. The base resume is parsed AT MOST ONCE per
+      // profile — skipped whenever the owner already has a parsed resume.
       const result = await tailorApplication({
         baseResume,
         jdText,
         questions: questions.map((q) => q.trim()).filter(Boolean),
       });
       const parsedJd = await parseJobDescription(jdText);
-      const parsedResume = existing ? null : await parseResume(baseResume);
+      const parsedResume = owner?.parsedResume ? null : await parseResume(baseResume);
 
-      // Uploaded base resume → materialize a real, reusable profile for it (sessions
-      // and jobs both require an owning profile). Its embedding runs in the
-      // best-effort block below, AFTER the application row exists.
-      let owner = existing;
+      // Uploaded base resume with no matching profile → materialize a real, reusable
+      // profile for it (sessions and jobs both require an owning profile). Its
+      // embedding runs in the best-effort block below, AFTER the application exists.
+      let createdProfile = false;
       if (!owner) {
         owner = profilesRepo.create({
           name: result.candidateName || 'Imported resume',
@@ -82,8 +91,9 @@ export function registerApplicationsIpc(): void {
           resumeText: baseResume,
           jdText: null,
         });
-        profilesRepo.update(owner.id, { parsedResume });
+        createdProfile = true;
       }
+      if (parsedResume) profilesRepo.update(owner.id, { parsedResume });
 
       // The application's dedicated job: holds the JD + (via indexJob) the tailored
       // chunks. Hidden from the regular Interviews table.
@@ -116,7 +126,9 @@ export function registerApplicationsIpc(): void {
       let embedded = 0;
       let indexError: string | null = null;
       try {
-        if (!existing) await reindexProfile(owner.id);
+        // Only a newly created (or newly parsed) profile needs its base re-indexed;
+        // a reused/matched profile's chunks are already in place.
+        if (createdProfile || parsedResume) await reindexProfile(owner.id);
         ({ embedded } = await indexJob(job.id));
       } catch (e) {
         indexError = normalizeOpenAIError(e);
@@ -126,13 +138,16 @@ export function registerApplicationsIpc(): void {
     },
   );
 
-  // Re-embed an application's grounding (JD + tailored chunks) — the recovery path
-  // when indexing failed at tailor time (and a way to re-embed after model changes).
+  // Re-embed an application's grounding — the recovery path when indexing failed at
+  // tailor time (and a way to re-embed after model changes). Heals BOTH the owning
+  // profile's base chunks (a failed first reindex is otherwise never retried — the
+  // parse-once gate skips matched profiles) AND the job's jd/tailored chunks.
   handle(IPC.applications.reindex, zId, async ({ id }) => {
     const app = applicationsRepo.get(id);
     if (!app) throw new Error('Application not found');
-    const { embedded } = await indexJob(app.jobId);
-    return { embedded };
+    const profile = await reindexProfile(app.profileId);
+    const job = await indexJob(app.jobId);
+    return { embedded: profile.embedded + job.embedded };
   });
 
   // Save the tailored resume as an ATS-friendly PDF (native save dialog).

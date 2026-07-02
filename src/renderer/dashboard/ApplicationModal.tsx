@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
+import { useLiveSession } from '../store/useLiveSession';
 import type { Application } from '@shared/types';
 import { Badge, Button, Modal } from '../components/ui';
 import { Markdown } from '../components/Markdown';
+import { wordDiff, type DiffSegment } from '../lib/wordDiff';
 
 /** View one application: the tailored resume (markdown), the grounded answers to
  *  the application questions, PDF download, and delete. Used both for a fresh
@@ -22,6 +24,9 @@ export function ApplicationModal({
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [compare, setCompare] = useState(false); // side-by-side base vs tailored
+  const { session } = useLiveSession();
+  const isLive = !!app && session?.jobId === app.jobId; // a live interview grounds in this app
 
   // Reset transient state whenever a different application (or none) is shown.
   useEffect(() => {
@@ -29,7 +34,14 @@ export function ApplicationModal({
     setNotice(null);
     setError(null);
     setConfirmDelete(false);
+    setCompare(false);
   }, [open, app?.id]);
+
+  // Word-level diff, computed only when comparing. Null = too large → plain panes.
+  const diff = useMemo(
+    () => (compare && app ? wordDiff(app.baseResume, app.tailoredResume) : null),
+    [compare, app],
+  );
 
   if (!app) return null;
   const label = `${app.name} - ${app.jobTitle}${app.company ? ` at ${app.company}` : ''}`;
@@ -98,6 +110,13 @@ export function ApplicationModal({
           </Button>
           <Button
             variant="ghost"
+            title="See what changed against your base resume"
+            onClick={() => setCompare((v) => !v)}
+          >
+            {compare ? 'Hide comparison' : 'Compare with base'}
+          </Button>
+          <Button
+            variant="ghost"
             disabled={!!busy}
             title="Re-embed the tailored resume + JD for live-interview grounding"
             onClick={() => void reindex()}
@@ -117,22 +136,48 @@ export function ApplicationModal({
               </Button>
             </>
           ) : (
-            <Button variant="ghost" className="text-red-300" onClick={() => setConfirmDelete(true)}>
+            <Button
+              variant="ghost"
+              className="text-red-300"
+              disabled={isLive}
+              title={isLive ? 'A live interview is using this application — stop it first' : undefined}
+              onClick={() => setConfirmDelete(true)}
+            >
               Delete
             </Button>
           )}
         </div>
 
-        {/* The tailored, ATS-friendly resume. */}
-        <section>
-          <div className="mb-2 flex items-baseline gap-2">
-            <h4 className="text-sm font-semibold text-neutral-200">Tailored resume</h4>
-            <Badge tone="green">ATS-friendly</Badge>
-          </div>
-          <div className="max-h-96 overflow-y-auto rounded-xl border border-white/10 bg-neutral-950/40 p-4 text-sm leading-relaxed">
-            <Markdown>{app.tailoredResume}</Markdown>
-          </div>
-        </section>
+        {/* The tailored, ATS-friendly resume — or a base-vs-tailored comparison. */}
+        {compare ? (
+          <section>
+            <div className="mb-2 flex items-baseline gap-2">
+              <h4 className="text-sm font-semibold text-neutral-200">Base vs tailored</h4>
+              {diff ? (
+                <span className="text-xs text-neutral-600">
+                  <span className="rounded-sm bg-red-500/25 px-1 text-red-200">removed</span> ·{' '}
+                  <span className="rounded-sm bg-green-500/25 px-1 text-green-200">added / rewritten</span>
+                </span>
+              ) : (
+                <span className="text-xs text-neutral-600">too long to highlight — shown side by side</span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <DiffPane title="Base resume" segs={diff?.base} fallback={app.baseResume} />
+              <DiffPane title="Tailored" segs={diff?.revised} fallback={app.tailoredResume} />
+            </div>
+          </section>
+        ) : (
+          <section>
+            <div className="mb-2 flex items-baseline gap-2">
+              <h4 className="text-sm font-semibold text-neutral-200">Tailored resume</h4>
+              <Badge tone="green">ATS-friendly</Badge>
+            </div>
+            <div className="max-h-96 overflow-y-auto rounded-xl border border-white/10 bg-neutral-950/40 p-4 text-sm leading-relaxed">
+              <Markdown>{app.tailoredResume}</Markdown>
+            </div>
+          </section>
+        )}
 
         {/* Grounded answers to the application's questions. */}
         {app.answers.length > 0 && (
@@ -155,5 +200,43 @@ export function ApplicationModal({
         </p>
       </div>
     </Modal>
+  );
+}
+
+/** One side of the base-vs-tailored comparison: highlighted diff segments when
+ *  available, otherwise the plain text (inputs too large to diff). */
+function DiffPane({
+  title,
+  segs,
+  fallback,
+}: {
+  title: string;
+  segs: DiffSegment[] | undefined;
+  fallback: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-1 text-xs font-medium text-neutral-500">{title}</div>
+      <div className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-neutral-950/40 p-3 text-xs leading-relaxed text-neutral-300">
+        {segs
+          ? segs.map((s, i) =>
+              s.op === 'same' ? (
+                <span key={i}>{s.text}</span>
+              ) : (
+                <span
+                  key={i}
+                  className={
+                    s.op === 'del'
+                      ? 'rounded-sm bg-red-500/25 text-red-200'
+                      : 'rounded-sm bg-green-500/25 text-green-200'
+                  }
+                >
+                  {s.text}
+                </span>
+              ),
+            )
+          : fallback}
+      </div>
+    </div>
   );
 }

@@ -40,6 +40,7 @@ export default function TailorPage() {
   const [loading, setLoading] = useState(false);
   const [rev, setRev] = useState(0); // bump to re-fetch after tailor/delete
   const [busyAppId, setBusyAppId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null); // row two-step delete
 
   useEffect(() => {
     void load();
@@ -53,6 +54,12 @@ export default function TailorPage() {
       api.applications
         .page(query.trim(), APPS_PER_PAGE, page * APPS_PER_PAGE)
         .then((r) => {
+          // Self-heal an out-of-range page (e.g. the last row of the last page was
+          // deleted): jump to the new last page instead of stranding an empty view.
+          if (r.items.length === 0 && r.total > 0 && page > 0) {
+            setPage(Math.ceil(r.total / APPS_PER_PAGE) - 1);
+            return;
+          }
           setRows(r.items);
           setTotal(r.total);
         })
@@ -159,6 +166,26 @@ export default function TailorPage() {
     }
   };
 
+  const deleteApp = async (id: string, jobId: string) => {
+    // A live interview is grounded in this application — deleting mid-session would
+    // silently downgrade its answers to base-resume grounding.
+    if (session?.jobId === jobId) {
+      setError('This application has a live interview — stop it before deleting.');
+      setConfirmDeleteId(null);
+      return;
+    }
+    setBusyAppId(id);
+    try {
+      await api.applications.delete(id);
+      setConfirmDeleteId(null);
+      setRev((v) => v + 1);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusyAppId(null);
+    }
+  };
+
   const columns: Column<ApplicationListItem>[] = [
     {
       key: 'label',
@@ -184,25 +211,53 @@ export default function TailorPage() {
     {
       key: 'actions',
       header: '',
-      className: 'w-56 text-right',
+      className: 'w-64 text-right',
       render: (a) => (
         <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-          {session?.jobId === a.jobId ? (
-            <Badge tone="green">● live</Badge>
+          {confirmDeleteId === a.id ? (
+            <>
+              <span className="text-xs text-neutral-500">Delete this application?</span>
+              <Button variant="ghost" onClick={() => setConfirmDeleteId(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                loading={busyAppId === a.id}
+                onClick={() => void deleteApp(a.id, a.jobId)}
+              >
+                Delete
+              </Button>
+            </>
           ) : (
-            <Button
-              variant="success"
-              disabled={!settings?.apiKeyPresent || !!session}
-              loading={busyAppId === a.id}
-              title="Start a live interview grounded in this tailored resume + JD"
-              onClick={() => void startInterview(a)}
-            >
-              <PlayIcon /> Start interview
-            </Button>
+            <>
+              {session?.jobId === a.jobId ? (
+                <Badge tone="green">● live</Badge>
+              ) : (
+                <Button
+                  variant="success"
+                  disabled={!settings?.apiKeyPresent || !!session}
+                  loading={busyAppId === a.id}
+                  title="Start a live interview grounded in this tailored resume + JD"
+                  onClick={() => void startInterview(a)}
+                >
+                  <PlayIcon /> Start interview
+                </Button>
+              )}
+              <Button variant="ghost" onClick={() => void openApp(a.id)}>
+                View
+              </Button>
+              {session?.jobId !== a.jobId && (
+                <Button
+                  variant="ghost"
+                  className="text-red-300"
+                  title="Delete this application (and its tailored grounding)"
+                  onClick={() => setConfirmDeleteId(a.id)}
+                >
+                  ✕
+                </Button>
+              )}
+            </>
           )}
-          <Button variant="ghost" onClick={() => void openApp(a.id)}>
-            View
-          </Button>
         </div>
       ),
     },
