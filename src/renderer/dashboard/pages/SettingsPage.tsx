@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { useTourStore } from '../../store/useTourStore';
 import { api } from '../../lib/api';
@@ -361,8 +361,15 @@ function ModelsCard({ settings, onSaved }: { settings: AppSettings; onSaved: () 
   const [available, setAvailable] = useState<string[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  // Keys the user edited in THIS card since the last sync — Save only writes these,
+  // so a stale page can't silently revert overrides written elsewhere (the Cue
+  // Card's coding panel persists models.coding while a session runs).
+  const dirty = useRef(new Set<string>());
 
-  useEffect(() => setOverrides(settings.models ?? {}), [settings.models]);
+  useEffect(() => {
+    setOverrides(settings.models ?? {});
+    dirty.current.clear();
+  }, [settings.models]);
   useEffect(() => setPreset(settings.modelPreset ?? 'balanced'), [settings.modelPreset]);
 
   // True once a per-task model override diverges from the active preset's table —
@@ -376,6 +383,7 @@ function ModelsCard({ settings, onSaved }: { settings: AppSettings; onSaved: () 
   const selectPreset = async (p: string) => {
     setPreset(p);
     setOverrides({});
+    dirty.current.clear();
     await api.settings.set({ modelPreset: p, models: {} });
     await onSaved();
     setStatus(`Preset: ${PRESET_OPTIONS.find((o) => o.value === p)?.label ?? p}.`);
@@ -404,17 +412,24 @@ function ModelsCard({ settings, onSaved }: { settings: AppSettings; onSaved: () 
   };
 
   const save = async () => {
-    // Persist only non-empty overrides; empty means "use default".
-    const clean = Object.fromEntries(
-      Object.entries(overrides).filter(([, v]) => v && v.trim()),
-    );
-    await api.settings.set({ models: clean });
+    // Read-modify-write against FRESH settings, touching only the keys edited in
+    // this card. Empty means "use default". A whole-map write from a stale page
+    // would silently revert overrides written elsewhere while it sat open.
+    const fresh = (await api.settings.get()) as AppSettings;
+    const merged: Record<string, string> = { ...(fresh.models ?? {}) };
+    for (const key of dirty.current) {
+      const v = (overrides[key] ?? '').trim();
+      if (v) merged[key] = v;
+      else delete merged[key];
+    }
+    await api.settings.set({ models: merged });
     await onSaved();
     setStatus('Models saved.');
   };
 
   const reset = async () => {
     setOverrides({});
+    dirty.current.clear();
     await api.settings.set({ models: {} });
     await onSaved();
     setStatus('Reset to defaults.');
@@ -483,7 +498,10 @@ function ModelsCard({ settings, onSaved }: { settings: AppSettings; onSaved: () 
                 value={overrides[f.key] ?? ''}
                 placeholder={`Default (${def})`}
                 options={options[f.key]}
-                onChange={(v) => setOverrides((o) => ({ ...o, [f.key]: v }))}
+                onChange={(v) => {
+                  dirty.current.add(f.key);
+                  setOverrides((o) => ({ ...o, [f.key]: v }));
+                }}
               />
             </Field>
           );

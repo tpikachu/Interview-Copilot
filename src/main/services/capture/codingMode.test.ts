@@ -20,6 +20,11 @@ vi.mock('../../db/repositories/settings.repo', () => ({
   SETTINGS_KEYS: { codingLanguage: 'coding_language' },
   settingsRepo: { get: () => null },
 }));
+// codingMode reads the live Answer Format from sessionManager (→ db/windows/openai) —
+// stub it (null ⇒ the coding default, 'explanation').
+vi.mock('../session/sessionManager', () => ({
+  sessionManager: { activeAnswerFormat: () => null },
+}));
 
 import { addCapture, clearCaptures, solveCaptures } from './codingMode';
 import { broadcast } from '../../ipc/broadcast';
@@ -69,7 +74,12 @@ describe('multi-image capture buffer', () => {
     addCapture('img-2');
     await solveCaptures();
     expect(solveFromImages).toHaveBeenCalledTimes(1);
-    expect(solveFromImages).toHaveBeenCalledWith(['img-1', 'img-2'], 'javascript');
+    expect(solveFromImages).toHaveBeenCalledWith(
+      ['img-1', 'img-2'],
+      'javascript',
+      'explanation',
+      expect.any(AbortSignal),
+    );
     expect(lastBufferImages()).toEqual([]); // buffer cleared after solving
   });
 });

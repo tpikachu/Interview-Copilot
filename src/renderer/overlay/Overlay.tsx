@@ -21,7 +21,7 @@ import {
   removeCard,
   toggleCollapsed,
 } from './answerCards';
-import { splitPronunciation } from './pronunciation';
+import { injectPronunciations, splitPronunciation } from './pronunciation';
 import {
   BoltIcon,
   ChevronRightIcon,
@@ -60,17 +60,17 @@ const INTERVIEW_TYPES: { value: InterviewType; label: string }[] = [
   { value: 'technical', label: 'Technical' },
   { value: 'coding', label: 'Coding' },
   { value: 'system_design', label: 'System design' },
-  { value: 'product', label: 'Product' },
-  { value: 'sales', label: 'Sales' },
 ];
 
 export default function Overlay() {
   // Answer cards: the newest is the live/streaming one. With history on, prior cards
   // are kept collapsed instead of replaced; each card is individually removable.
   const [cards, setCards] = useState<AnswerCard[]>([]);
-  const [historyEnabled, setHistoryEnabled] = useState(false);
+  // ON by default: past answers collapse (and stay removable) when a new question
+  // arrives, instead of being replaced. The 📚 toggle can switch back to replace-mode.
+  const [historyEnabled, setHistoryEnabled] = useState(true);
   const cardId = useRef(0);
-  const historyEnabledRef = useRef(false); // mirror for the once-subscribed handlers
+  const historyEnabledRef = useRef(true); // mirror for the once-subscribed handlers
 
   const [fontSize, setFontSize] = useState(14);
   const [opacity, setOpacity] = useState(0.95);
@@ -127,37 +127,38 @@ export default function Overlay() {
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
   const cleanup = useRef<(() => void)[]>([]);
-  // Streamed tokens arrive far faster than the screen refreshes. Buffer them and
+  // Streamed tokens arrive far faster than the screen refreshes. Buffer them PER
+  // QUESTION (streams can overlap — e.g. a coding solve during a live answer) and
   // flush once per animation frame so the (re-parsed) markdown renders at most
-  // ~60×/sec instead of once per token.
-  const pendingTokens = useRef('');
+  // ~60×/sec instead of once per token. One buffer per questionId means concurrent
+  // streams can never interleave into the wrong card.
+  const pendingTokens = useRef(new Map<string, string>());
   const flushHandle = useRef<number | null>(null);
-  // The questionId whose answer is currently streaming — so buffered tokens flush to
-  // the RIGHT card (routing by id supports regenerating any card, not just the last).
-  const streamingId = useRef('');
 
   useEffect(() => {
     const flush = () => {
       flushHandle.current = null;
-      if (!pendingTokens.current) return;
-      const chunk = pendingTokens.current;
-      pendingTokens.current = '';
-      setCards((cs) => appendById(cs, streamingId.current, chunk));
+      if (pendingTokens.current.size === 0) return;
+      const chunks = [...pendingTokens.current.entries()];
+      pendingTokens.current.clear();
+      setCards((cs) => chunks.reduce((acc, [qid, chunk]) => appendById(acc, qid, chunk), cs));
     };
     const scheduleFlush = () => {
       if (flushHandle.current == null) flushHandle.current = requestAnimationFrame(flush);
     };
+    /** Drop ONE stream's buffered tokens (its answer is being reset/re-streamed). */
+    const dropPending = (questionId: string) => {
+      pendingTokens.current.delete(questionId);
+    };
     const cancelFlush = () => {
       if (flushHandle.current != null) cancelAnimationFrame(flushHandle.current);
       flushHandle.current = null;
-      pendingTokens.current = '';
+      pendingTokens.current.clear();
     };
 
     cleanup.current.push(
       api.events.onQuestionDetected((p) => {
         const q = p as { id: string; text: string; type?: string };
-        cancelFlush();
-        streamingId.current = q.id;
         // History on: collapse prior cards and add a fresh one. Off: replace.
         setCards((cs) =>
           addCard(
@@ -186,8 +187,10 @@ export default function Overlay() {
       }),
       api.events.onAnswerDelta((p) => {
         const d = p as { questionId: string; token: string };
-        streamingId.current = d.questionId;
-        pendingTokens.current += d.token;
+        pendingTokens.current.set(
+          d.questionId,
+          (pendingTokens.current.get(d.questionId) ?? '') + d.token,
+        );
         scheduleFlush();
       }),
       api.events.onAnswerMeta((p) => {
@@ -202,8 +205,8 @@ export default function Overlay() {
       // tokens don't append to the old answer. Reuses the same card (routed by id).
       api.events.onAnswerReset((p) => {
         const qid = (p as { questionId: string }).questionId;
-        cancelFlush();
-        streamingId.current = qid;
+        // Drop ONLY this stream's buffered tokens — concurrent streams keep theirs.
+        dropPending(qid);
         // Also expand it — regenerating a collapsed history card should surface it.
         setCards((cs) =>
           patchById(cs, qid, {
@@ -379,7 +382,7 @@ export default function Overlay() {
       cancelAnimationFrame(flushHandle.current);
       flushHandle.current = null;
     }
-    pendingTokens.current = '';
+    pendingTokens.current.clear(); // full clear — every stream's buffer goes
     setCards([]); // clear all answers (each card also has its own × remove)
     void api.session.clearAnswer();
   };
@@ -407,22 +410,30 @@ export default function Overlay() {
     void api.settings.set({ audio: { source, micDeviceId: device } });
   };
 
-  // Persist the coding-solver model/effort. Merges into the full override maps so we
-  // don't wipe other tasks' overrides ('' clears the key → falls back to the default).
-  const saveCoding = (next: { model?: string; effort?: string }) => {
+  // Persist the coding-solver model/effort. Read-modify-write against FRESH settings
+  // (not the boot-time snapshot): the overlay window lives for the whole app session,
+  // so merging into stale maps would silently revert overrides changed later from the
+  // dashboard Settings page. '' clears the key → falls back to the default.
+  const saveCoding = async (next: { model?: string; effort?: string }) => {
     const m = next.model !== undefined ? next.model : codingModel;
     const e = next.effort !== undefined ? next.effort : codingEffort;
     setCodingModel(m);
     setCodingEffort(e);
-    const models = { ...modelsRef.current };
-    if (m) models.coding = m;
-    else delete models.coding;
-    const efforts = { ...effortsRef.current };
-    if (e) efforts.coding = e;
-    else delete efforts.coding;
-    modelsRef.current = models;
-    effortsRef.current = efforts;
-    void api.settings.set({ models, reasoningEfforts: efforts });
+    try {
+      const fresh = (await api.settings.get()) as AppSettings;
+      const models = { ...(fresh.models ?? {}) };
+      if (m) models.coding = m;
+      else delete models.coding;
+      const efforts = { ...(fresh.reasoningEfforts ?? {}) };
+      if (e) efforts.coding = e;
+      else delete efforts.coding;
+      modelsRef.current = models;
+      effortsRef.current = efforts;
+      await api.settings.set({ models, reasoningEfforts: efforts });
+    } catch {
+      // Persistence failed — the pickers still show the chosen value; the next
+      // successful save (or app restart) reconciles.
+    }
   };
 
   const sendAsk = () => {
@@ -939,14 +950,13 @@ export default function Overlay() {
                 {!c.collapsed && (
                   <div className="mt-0.5 leading-relaxed">
                     {c.answer ? (
-                      <Markdown>{splitPronunciation(c.answer).body}</Markdown>
+                      <Markdown>{renderAnswerBody(c.answer)}</Markdown>
                     ) : isCurrent && live && !paused ? (
                       <span className="text-xs text-neutral-500">Listening…</span>
                     ) : null}
                     {c.streaming && <span className="ml-0.5 animate-pulse">▋</span>}
                     <StoryCue card={c} />
                     <Citations card={c} openKey={openCite} onToggle={setOpenCite} />
-                    <PronunciationGuide card={c} />
                   </div>
                 )}
               </div>
@@ -1097,7 +1107,7 @@ export default function Overlay() {
                 <span className="mb-1 block text-xs font-medium text-neutral-400">Model</span>
                 <select
                   value={codingModel}
-                  onChange={(e) => saveCoding({ model: e.target.value })}
+                  onChange={(e) => void saveCoding({ model: e.target.value })}
                   className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-indigo-500"
                 >
                   <option value="">Default ({codingDefaults.model})</option>
@@ -1114,7 +1124,7 @@ export default function Overlay() {
                 </span>
                 <select
                   value={codingEffort}
-                  onChange={(e) => saveCoding({ effort: e.target.value })}
+                  onChange={(e) => void saveCoding({ effort: e.target.value })}
                   className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-indigo-500"
                 >
                   <option value="">Default ({codingDefaults.effort})</option>
@@ -1173,29 +1183,13 @@ export default function Overlay() {
   );
 }
 
-/** A structured "how to say it" panel for the hard words in the current answer —
- *  kept separate from the (natural) answer so the spoken text stays clean. Parsing
- *  lives in ./pronunciation (splitPronunciation), tolerant of model-output variance. */
-function PronunciationGuide({ card }: { card: AnswerCard }) {
-  const { entries } = splitPronunciation(card.answer);
-  if (entries.length === 0) return null;
-  return (
-    <div className="mt-1.5 space-y-1.5 rounded border border-teal-500/30 bg-teal-500/10 px-1.5 py-1 text-[10px]">
-      <div className="font-medium text-teal-200">🗣 How to say it</div>
-      {entries.map((e, i) => (
-        <div key={i} className="leading-snug text-teal-100/90">
-          <span className="font-semibold text-teal-100">{e.word}</span>
-          <span className="ml-1 text-teal-300/80">{e.say}</span>
-          {(e.pos || e.singular) && (
-            <div className="text-teal-100/70">
-              {e.pos}
-              {e.singular ? ` · singular: ${e.singular}` : ''}
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
+/** The displayed answer body: the model's structured [[PRONUNCIATION]] section is
+ *  stripped and each hard word's respelling is injected inline right after the word
+ *  — "regulations (reg-yuh-LAY-shunz)" — so the cue sits in context. The underlying
+ *  answer (copy/persist) stays clean. */
+function renderAnswerBody(answer: string): string {
+  const { body, entries } = splitPronunciation(answer);
+  return entries.length ? injectPronunciations(body, entries) : body;
 }
 
 /** The best-matching STAR story from the user's Story Bank for this question (a

@@ -13,8 +13,6 @@ const INTERVIEW_TYPES: InterviewType[] = [
   'technical',
   'coding',
   'system_design',
-  'product',
-  'sales',
   'general',
 ];
 

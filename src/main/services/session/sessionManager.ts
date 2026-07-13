@@ -258,11 +258,14 @@ export const sessionManager = {
           tcId,
         );
       } else {
-        // Not a question — release the slot we claimed above.
-        live.answering = false;
+        // Not a question — release the slot we claimed above, unless an answer
+        // stream (manual Ask / regenerate during the classify await) has since
+        // taken ownership: answerAbort is set exclusively by generateAnswer, and
+        // that stream's own finally releases the slot.
+        if (!live.answerAbort) live.answering = false;
       }
     } catch (e) {
-      if (live) live.answering = false;
+      if (live?.sessionId === sessionId && !live.answerAbort) live.answering = false;
       log.error('processFinalTranscript failed', e);
     }
   },
@@ -274,10 +277,15 @@ export const sessionManager = {
       .where(eq(schema.sessions.id, sessionId))
       .run();
     // Snapshot the row now so we can still return it even if a mock session is
-    // deleted below.
-    const result = toSession(
-      db().select().from(schema.sessions).where(eq(schema.sessions.id, sessionId)).get()!,
-    );
+    // deleted below. The row can already be gone (e.g. the user pressed Stop on a
+    // mock while its first question was in flight) — fail cleanly, not TypeError.
+    const row = db()
+      .select()
+      .from(schema.sessions)
+      .where(eq(schema.sessions.id, sessionId))
+      .get();
+    if (!row) throw new Error('Session not found');
+    const result = toSession(row);
     // Only tear down the live UI when we actually stopped the LIVE session —
     // stopping some other (already-stopped) session row must not kill a running
     // one or hide the overlay out from under it.
@@ -484,9 +492,13 @@ export const sessionManager = {
       broadcast(EVENTS.answerDone, { questionId });
       throw e;
     } finally {
-      if (live) {
+      // Only the stream that still OWNS the slot may release it. An aborted stream
+      // that was already replaced (regenerate / format toggle / manual Ask) must not
+      // clear the replacement's `answering` claim — that would reopen the no-overlap
+      // gate while the new answer is still streaming.
+      if (live && live.answerAbort === abort) {
         live.answering = false;
-        if (live.answerAbort === abort) live.answerAbort = null;
+        live.answerAbort = null;
       }
     }
 
@@ -521,6 +533,12 @@ export const sessionManager = {
    *  interview just changes how subsequent answers are framed (each question is
    *  still classified + tagged independently). Takes effect on the next (or
    *  regenerated) answer. */
+  /** The live session's current Answer Format (null when idle) — read by the coding
+   *  solver so its four-beat delivery follows the Cue Card's format toggle. */
+  activeAnswerFormat(): AnswerFormat | null {
+    return live?.answerFormat ?? null;
+  },
+
   setAnswerPrefs(prefs: {
     interviewType?: InterviewType;
     format?: AnswerFormat;

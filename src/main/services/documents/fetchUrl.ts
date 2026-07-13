@@ -52,6 +52,22 @@ function htmlToText(html: string): string {
     .trim();
 }
 
+/** True for hostnames that point at the local machine or a private network —
+ *  loopback, RFC-1918/4193 ranges, link-local (incl. cloud metadata). A literal
+ *  check only (no DNS resolution), which is enough to stop a redirect from
+ *  disguising an internal target behind an innocent-looking public link. */
+export function isPrivateHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, ''); // [::1] → ::1
+  return (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host.endsWith('.local') ||
+    /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.)/.test(host) ||
+    host === '::1' ||
+    /^(fe80:|fc|fd)/.test(host)
+  );
+}
+
 /** Fetch a URL and return its readable text. Throws on network/HTTP failure. */
 export async function fetchUrlText(rawUrl: string): Promise<{ text: string; title: string | null }> {
   let url: URL;
@@ -64,29 +80,70 @@ export async function fetchUrlText(rawUrl: string): Promise<{ text: string; titl
     throw new Error('Only http(s) links are supported.');
   }
 
+  // ONE deadline covers headers AND the body read — clearing it as soon as the
+  // headers arrive would leave the body download unbounded in time.
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   let res: Response;
+  let buf: Buffer;
   try {
-    res = await fetch(url, {
-      redirect: 'follow',
-      signal: controller.signal,
-      headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,*/*' },
-    });
-  } catch (e) {
-    throw new Error(
-      (e as Error).name === 'AbortError'
-        ? 'The link took too long to respond.'
-        : `Could not reach the link: ${(e as Error).message}`,
-    );
+    try {
+      res = await fetch(url, {
+        redirect: 'follow',
+        signal: controller.signal,
+        headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,*/*' },
+      });
+    } catch (e) {
+      throw new Error(
+        (e as Error).name === 'AbortError'
+          ? 'The link took too long to respond.'
+          : `Could not reach the link: ${(e as Error).message}`,
+      );
+    }
+
+    if (!res.ok) throw new Error(`The link returned HTTP ${res.status}.`);
+
+    // Redirects are followed, so re-check where we actually LANDED: a typed
+    // private/intranet URL is the user's own choice, but a public link must not
+    // 3xx into local services whose content would then be embedded into prompts.
+    if (res.redirected) {
+      let landed: URL | null = null;
+      try {
+        landed = new URL(res.url);
+      } catch {
+        /* no final URL to judge — fall through */
+      }
+      if (landed && (isPrivateHost(landed.hostname) || (landed.protocol !== 'http:' && landed.protocol !== 'https:'))) {
+        throw new Error('The link redirected to a local or private address — not supported.');
+      }
+    }
+
+    // Enforce MAX_BYTES while STREAMING — a huge or endless body must never sit
+    // fully in main-process memory (an OOM here takes down the whole app).
+    try {
+      const chunks: Buffer[] = [];
+      let total = 0;
+      if (res.body) {
+        for await (const chunk of res.body) {
+          const c = Buffer.from(chunk);
+          chunks.push(c);
+          total += c.length;
+          if (total >= MAX_BYTES) break; // early exit cancels the rest of the stream
+        }
+      }
+      buf = Buffer.concat(chunks).subarray(0, MAX_BYTES);
+    } catch (e) {
+      throw new Error(
+        (e as Error).name === 'AbortError'
+          ? 'The page took too long to load.'
+          : `Could not read the page: ${(e as Error).message}`,
+      );
+    }
   } finally {
     clearTimeout(timer);
   }
 
-  if (!res.ok) throw new Error(`The link returned HTTP ${res.status}.`);
-
   const contentType = res.headers.get('content-type') ?? '';
-  const buf = Buffer.from(await res.arrayBuffer()).subarray(0, MAX_BYTES);
   const body = buf.toString('utf8');
 
   const isHtml = contentType.includes('html') || /<\/?[a-z][\s\S]*>/i.test(body.slice(0, 2000));

@@ -4,7 +4,7 @@ import { handle, zId } from './helpers';
 import { applicationsRepo } from '../db/repositories/applications.repo';
 import { profilesRepo } from '../db/repositories/profiles.repo';
 import { jobsRepo } from '../db/repositories/jobs.repo';
-import { tailorApplication } from '../services/openai/tailor';
+import { answerApplicationQuestions, tailorApplication } from '../services/openai/tailor';
 import { parseJobDescription, parseResume } from '../services/openai/parsing';
 import { indexJob, reindexProfile } from '../services/rag/indexProfile';
 import { exportResumePdf } from '../services/documents/resumePdf';
@@ -135,6 +135,29 @@ export function registerApplicationsIpc(): void {
         log.warn('applications:tailor indexing failed (app saved)', indexError);
       }
       return { application: app, embedded, indexError };
+    },
+  );
+
+  // Answer application questions LATER (after tailoring) — same grounding rules as
+  // tailor-time answers (base resume + JD, never invented). The model call runs
+  // first; the answers are appended only when it succeeds.
+  handle(
+    IPC.applications.answerQuestions,
+    z.object({ id: z.string().min(1), questions: z.array(z.string()).min(1) }),
+    async ({ id, questions }) => {
+      if (!apiKeyStore.isPresent())
+        throw new Error('Add your OpenAI API key in Settings to answer questions.');
+      const app = applicationsRepo.get(id);
+      if (!app) throw new Error('Application not found');
+      const trimmed = questions.map((q) => q.trim()).filter(Boolean);
+      if (trimmed.length === 0) throw new Error('Paste at least one question.');
+
+      const answers = await answerApplicationQuestions({
+        baseResume: app.baseResume,
+        jdText: jobsRepo.get(app.jobId)?.jdText ?? '',
+        questions: trimmed,
+      });
+      return { application: applicationsRepo.appendAnswers(id, answers) };
     },
   );
 
