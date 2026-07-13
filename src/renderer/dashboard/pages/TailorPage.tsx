@@ -384,7 +384,7 @@ export default function TailorPage() {
           </div>
 
           <div className="mt-4">
-            <Field label="Application questions (optional — one per line)">
+            <Field label="Application questions (optional — one per line; you can also answer more later from the application view)">
               <TextArea
                 rows={3}
                 value={questionsText}
@@ -448,6 +448,7 @@ export default function TailorPage() {
         open={viewOpen}
         app={viewApp}
         onClose={() => setViewOpen(false)}
+        onUpdated={setViewApp}
         onDeleted={() => {
           setPage(0);
           setRev((v) => v + 1);

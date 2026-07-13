@@ -1,12 +1,13 @@
 // Domain types shared between main and renderer. No runtime/Node/DOM imports.
 
+// SWE-focused (product/sales sessions removed — BrainCue targets software engineers).
+// Old DB rows with a removed type still load (stored as text); they just can't be
+// re-selected.
 export type InterviewType =
   | 'behavioral'
   | 'technical'
   | 'coding'
   | 'system_design'
-  | 'product'
-  | 'sales'
   | 'general';
 
 /** Answer FORMAT — the single live Cue Card control (v1.2; replaces the old

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitPronunciation } from './pronunciation';
+import { injectPronunciations, splitPronunciation } from './pronunciation';
 
 describe('splitPronunciation', () => {
   it('returns the whole answer as body when there is no guide', () => {
@@ -58,5 +58,44 @@ describe('splitPronunciation', () => {
     expect(entries).toEqual([
       { word: 'Gleason', pos: 'proper noun', singular: '', say: 'GLEE-sun' },
     ]);
+  });
+});
+
+describe('injectPronunciations', () => {
+  const entry = (word: string, say: string) => ({ word, pos: '', singular: '', say });
+
+  it('inserts the respelling right after the FIRST occurrence only', () => {
+    const out = injectPronunciations('I follow regulations. New regulations apply.', [
+      entry('regulations', 'reg-yuh-LAY-shunz'),
+    ]);
+    expect(out).toBe('I follow regulations (reg-yuh-LAY-shunz). New regulations apply.');
+  });
+
+  it('matches case-insensitively but keeps the original casing', () => {
+    const out = injectPronunciations('Kubernetes runs it.', [entry('kubernetes', 'koo-ber-NET-eez')]);
+    expect(out).toBe('Kubernetes (koo-ber-NET-eez) runs it.');
+  });
+
+  it('injects multiple words independently', () => {
+    const out = injectPronunciations('Nguyen deployed Kubernetes.', [
+      entry('Nguyen', 'WIN'),
+      entry('Kubernetes', 'koo-ber-NET-eez'),
+    ]);
+    expect(out).toBe('Nguyen (WIN) deployed Kubernetes (koo-ber-NET-eez).');
+  });
+
+  it('skips words that never appear in the body (no crash, no change)', () => {
+    expect(injectPronunciations('plain text', [entry('missing', 'MIS-ing')])).toBe('plain text');
+  });
+
+  it('does not match inside longer words (word boundary)', () => {
+    const out = injectPronunciations('deregulations exist', [entry('regulations', 'X')]);
+    expect(out).toBe('deregulations exist');
+  });
+
+  it('escapes regex metacharacters in words', () => {
+    expect(injectPronunciations('used C++ daily', [entry('C++', 'SEE-plus-plus')])).toContain(
+      'C++ (SEE-plus-plus)',
+    );
   });
 });

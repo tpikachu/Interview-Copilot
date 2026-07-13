@@ -8,8 +8,6 @@ const interviewType = z.enum([
   'technical',
   'coding',
   'system_design',
-  'product',
-  'sales',
   'general',
 ]);
 const profileInput = z.object({

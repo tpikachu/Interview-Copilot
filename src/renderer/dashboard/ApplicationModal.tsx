@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import { useLiveSession } from '../store/useLiveSession';
 import type { Application } from '@shared/types';
-import { Badge, Button, Modal } from '../components/ui';
+import { Badge, Button, Field, Modal, TextArea } from '../components/ui';
 import { Markdown } from '../components/Markdown';
 import { wordDiff, type DiffSegment } from '../lib/wordDiff';
 
@@ -14,17 +14,21 @@ export function ApplicationModal({
   app,
   onClose,
   onDeleted,
+  onUpdated,
 }: {
   open: boolean;
   app: Application | null;
   onClose: () => void;
   onDeleted: (id: string) => void;
+  /** Called with the refreshed application after answering more questions. */
+  onUpdated?: (app: Application) => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [compare, setCompare] = useState(false); // side-by-side base vs tailored
+  const [moreQuestions, setMoreQuestions] = useState(''); // answer-later input, one per line
   const { session } = useLiveSession();
   const isLive = !!app && session?.jobId === app.jobId; // a live interview grounds in this app
 
@@ -35,6 +39,7 @@ export function ApplicationModal({
     setError(null);
     setConfirmDelete(false);
     setCompare(false);
+    setMoreQuestions('');
   }, [open, app?.id]);
 
   // Word-level diff, computed only when comparing. Null = too large → plain panes.
@@ -67,6 +72,30 @@ export function ApplicationModal({
       await api.applications.delete(app.id);
       onDeleted(app.id);
       onClose();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Answer more application questions later — grounded like tailor-time answers
+  // (base resume + JD, never invented); appended to the existing answers.
+  const answerMore = async () => {
+    if (!app) return;
+    const questions = moreQuestions
+      .split('\n')
+      .map((q) => q.trim())
+      .filter(Boolean);
+    if (questions.length === 0) return;
+    setBusy('Answering…');
+    setError(null);
+    setNotice(null);
+    try {
+      const r = await api.applications.answerQuestions(app.id, questions);
+      onUpdated?.(r.application);
+      setMoreQuestions('');
+      setNotice(`Answered ${questions.length} question${questions.length === 1 ? '' : 's'} ✓`);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -193,6 +222,30 @@ export function ApplicationModal({
             </div>
           </section>
         )}
+
+        {/* Answer application questions later — e.g. the portal reveals them after
+            you submit the resume. Appended to the answers above. */}
+        <section>
+          <h4 className="mb-2 text-sm font-semibold text-neutral-200">
+            {app.answers.length > 0 ? 'Answer more questions' : 'Answer application questions'}
+          </h4>
+          <Field label="One question per line">
+            <TextArea
+              rows={2}
+              value={moreQuestions}
+              onChange={(e) => setMoreQuestions(e.target.value)}
+              placeholder={'Why do you want to work here?\nWhat is your biggest strength?'}
+            />
+          </Field>
+          <Button
+            variant="default"
+            className="mt-2"
+            disabled={!!busy || !moreQuestions.trim()}
+            onClick={() => void answerMore()}
+          >
+            {busy === 'Answering…' ? 'Answering…' : 'Answer questions'}
+          </Button>
+        </section>
 
         <p className="text-xs text-neutral-500">
           Tailored only from your base resume — nothing invented. “Start interview” from the

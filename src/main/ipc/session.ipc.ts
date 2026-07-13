@@ -11,8 +11,6 @@ const interviewType = z.enum([
   'technical',
   'coding',
   'system_design',
-  'product',
-  'sales',
   'general',
 ]);
 const answerFormat = z.enum(['key_points', 'explanation', 'detailed', 'story_teller']);

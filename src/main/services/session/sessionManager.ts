@@ -521,6 +521,12 @@ export const sessionManager = {
    *  interview just changes how subsequent answers are framed (each question is
    *  still classified + tagged independently). Takes effect on the next (or
    *  regenerated) answer. */
+  /** The live session's current Answer Format (null when idle) — read by the coding
+   *  solver so its four-beat delivery follows the Cue Card's format toggle. */
+  activeAnswerFormat(): AnswerFormat | null {
+    return live?.answerFormat ?? null;
+  },
+
   setAnswerPrefs(prefs: {
     interviewType?: InterviewType;
     format?: AnswerFormat;

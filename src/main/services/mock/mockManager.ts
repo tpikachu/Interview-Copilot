@@ -16,8 +16,6 @@ const QUESTION_TYPE_BY_INTERVIEW: Record<InterviewType, QuestionType> = {
   technical: 'technical_concept',
   coding: 'coding',
   system_design: 'system_design',
-  product: 'product',
-  sales: 'behavioral',
   general: 'behavioral',
 };
 

@@ -133,6 +133,8 @@ const api = {
         IPC.applications.tailor,
         input,
       ),
+    answerQuestions: (id: string, questions: string[]) =>
+      invoke<{ application: Application }>(IPC.applications.answerQuestions, { id, questions }),
     reindex: (id: string) => invoke<{ embedded: number }>(IPC.applications.reindex, { id }),
     exportPdf: (id: string) =>
       invoke<{ saved: boolean; filePath?: string }>(IPC.applications.exportPdf, { id }),

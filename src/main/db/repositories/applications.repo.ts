@@ -104,6 +104,18 @@ export const applicationsRepo = {
     return { items, total };
   },
 
+  /** Append newly answered application questions (asked after tailoring). */
+  appendAnswers(id: string, answers: ApplicationAnswer[]): Application {
+    const app = this.get(id);
+    if (!app) throw new Error('Application not found');
+    db()
+      .update(schema.applications)
+      .set({ answers: JSON.stringify([...app.answers, ...answers]), updatedAt: Date.now() })
+      .where(eq(schema.applications.id, id))
+      .run();
+    return this.get(id)!;
+  },
+
   /** Delete an application AND its dedicated job (JD/company/tailored chunks +
    *  embeddings; sessions keep their history with jobId nulled — same semantics as
    *  deleting a job). The app row is removed explicitly too, so this works whether

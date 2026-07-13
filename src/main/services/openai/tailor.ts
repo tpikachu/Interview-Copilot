@@ -51,6 +51,62 @@ ANSWER RULES (the application questions):
 - If a question can't be answered from their background, be honest and pivot to the
   closest real, transferable experience.`;
 
+const ANSWER_SYSTEM = `You answer a job application's questions AS the candidate, in first person.
+You are given the candidate's REAL resume (the only source of truth about them) and the
+job description. Return JSON only: { "answers": [ { "question", "answer" }, ... ] } —
+one object per question, in order.
+
+RULES:
+- Ground every answer ONLY in the resume (plus honest motivation/fit reasoning from the
+  JD). Never invent experience.
+- 60-150 words each, natural and human — no corporate filler, no "As an AI".
+- If a question can't be answered from their background, be honest and pivot to the
+  closest real, transferable experience.`;
+
+/**
+ * Answer application questions for an EXISTING application (asked after the resume
+ * was tailored — "answer the questions later"). Same grounding rules as tailor-time
+ * answers. Throws when nothing usable comes back, so nothing gets persisted.
+ */
+export async function answerApplicationQuestions(input: {
+  baseResume: string;
+  jdText: string;
+  questions: string[];
+}): Promise<ApplicationAnswer[]> {
+  const user = [
+    'RESUME (the only source of truth about the candidate):',
+    input.baseResume.slice(0, 24_000),
+    '',
+    'JOB DESCRIPTION:',
+    input.jdText.slice(0, 24_000),
+    '',
+    `APPLICATION QUESTIONS:\n${input.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`,
+    '',
+    'Produce the JSON now.',
+  ].join('\n');
+
+  const res = await openai().responses.create({
+    model: model('tailor'),
+    ...reasoningParam('tailor'),
+    input: [
+      { role: 'system', content: ANSWER_SYSTEM },
+      { role: 'user', content: user },
+    ],
+    text: { format: { type: 'json_object' } },
+  });
+
+  const raw = JSON.parse(res.output_text) as { answers?: unknown };
+  const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+  const answers: ApplicationAnswer[] = (Array.isArray(raw.answers) ? (raw.answers as unknown[]) : [])
+    .map((a) => {
+      const o = (a ?? {}) as Record<string, unknown>;
+      return { question: str(o.question), answer: str(o.answer) };
+    })
+    .filter((a) => a.question && a.answer);
+  if (answers.length === 0) throw new Error('No answers were generated — please try again.');
+  return answers;
+}
+
 /**
  * One call tailors the resume + answers the application questions + extracts the
  * job title/company. Output is defensively defaulted so a malformed model response

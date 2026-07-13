@@ -10,8 +10,6 @@ const INTERVIEW_TYPES: { value: InterviewType; label: string }[] = [
   { value: 'technical', label: 'Technical' },
   { value: 'coding', label: 'Coding' },
   { value: 'system_design', label: 'System design' },
-  { value: 'product', label: 'Product' },
-  { value: 'sales', label: 'Sales' },
 ];
 
 /** Global "Interview ended" save-or-discard prompt. Rendered in App (not a page):

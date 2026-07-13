@@ -21,7 +21,7 @@ vi.mock('./models', () => ({
   reasoningParam: () => ({}),
 }));
 
-import { tailorApplication } from './tailor';
+import { answerApplicationQuestions, tailorApplication } from './tailor';
 
 function input(over: Partial<Parameters<typeof tailorApplication>[0]> = {}) {
   return {
@@ -109,5 +109,38 @@ describe('tailorApplication — defensive parsing', () => {
     });
     const r = await tailorApplication(input());
     expect(r.answers).toEqual([{ question: 'Q2', answer: 'A2' }]);
+  });
+});
+
+describe('answerApplicationQuestions (answer later)', () => {
+  const laterInput = {
+    baseResume: 'Jane Doe. Cut p99 latency 40%.',
+    jdText: 'Senior Backend Engineer at Globex.',
+    questions: ['Why Globex?', 'Biggest strength?'],
+  };
+
+  it('uses the tailor model, grounds in the resume, and numbers the questions', async () => {
+    h.reply = JSON.stringify({ answers: [{ question: 'Why Globex?', answer: 'Because…' }] });
+    await answerApplicationQuestions(laterInput);
+    expect(h.lastBody!.model).toBe('model:tailor');
+    expect(systemPrompt()).toMatch(/Never invent/i);
+    const u = userPrompt();
+    expect(u).toContain('Cut p99 latency 40%');
+    expect(u).toContain('1. Why Globex?');
+    expect(u).toContain('2. Biggest strength?');
+  });
+
+  it('returns only well-formed answers', async () => {
+    h.reply = JSON.stringify({
+      answers: [{ question: 'Q1', answer: 'A1' }, { question: '' }, 'junk'],
+    });
+    expect(await answerApplicationQuestions(laterInput)).toEqual([
+      { question: 'Q1', answer: 'A1' },
+    ]);
+  });
+
+  it('throws when nothing usable comes back (nothing gets persisted)', async () => {
+    h.reply = '{}';
+    await expect(answerApplicationQuestions(laterInput)).rejects.toThrow(/No answers/i);
   });
 });

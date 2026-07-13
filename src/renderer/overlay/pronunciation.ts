@@ -23,6 +23,26 @@ const PARTIAL_MARKER = /\n*\[\[\s*(?:P(?:R(?:O)?)?)?\s*$/i;
  *   the optional singular) still yields a usable entry;
  * - common "no singular" placeholders (—, –, -, n/a) are normalized to empty.
  */
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Insert each hard word's respelling inline, right after the word's FIRST
+ *  occurrence in the body — e.g. "regulations (reg-yuh-LAY-shunz)" — so the cue is
+ *  visible in context while the underlying answer text stays clean (copy/persist
+ *  keep the un-annotated body). Words not found in the body are skipped. */
+export function injectPronunciations(body: string, entries: PronEntry[]): string {
+  let out = body;
+  for (const e of entries) {
+    if (!e.word || !e.say) continue;
+    // \b only exists next to a word character — for words ending in symbols
+    // (e.g. "C++") a trailing \b would never match, so add boundaries conditionally.
+    const start = /^\w/.test(e.word) ? '\\b' : '';
+    const end = /\w$/.test(e.word) ? '\\b' : '';
+    const re = new RegExp(`${start}${escapeRegExp(e.word)}${end}`, 'i');
+    if (re.test(out)) out = out.replace(re, (m) => `${m} (${e.say})`);
+  }
+  return out;
+}
+
 export function splitPronunciation(answer: string): { body: string; entries: PronEntry[] } {
   const at = answer.search(/\[\[\s*PRON/i);
   if (at === -1) {

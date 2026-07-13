@@ -7,10 +7,16 @@ import { normalizeOpenAIError } from '../openai/client';
 import type { AnswerEvent } from '../openai/answer';
 import { showOverlay } from '../../windows/overlayWindow';
 import { SETTINGS_KEYS, settingsRepo } from '../../db/repositories/settings.repo';
+import { sessionManager } from '../session/sessionManager';
+import type { AnswerFormat } from '@shared/types';
 
 /** The programming language the solver writes solutions in (Cue Card setting; JS default). */
 const codingLanguage = (): string =>
   settingsRepo.get(SETTINGS_KEYS.codingLanguage) || 'javascript';
+
+/** The four-beat delivery follows the live Cue Card's Answer Format when a session
+ *  is running; outside a session the coding default is the spoken explanation. */
+const codingFormat = (): AnswerFormat => sessionManager.activeAnswerFormat() ?? 'explanation';
 
 // Accumulated problem screenshots for the current solve. A long problem scrolls
 // past one viewport, so the user captures several (scroll → capture → repeat) and
@@ -50,7 +56,7 @@ export function solveCaptures(): Promise<void> {
     images.length > 1
       ? `Coding problem (${images.length} screenshots)`
       : 'Coding problem (from screenshot)';
-  return streamToOverlay(solveFromImages(images, codingLanguage()), label);
+  return streamToOverlay(solveFromImages(images, codingLanguage(), codingFormat()), label);
 }
 
 async function streamToOverlay(gen: AsyncGenerator<AnswerEvent>, label: string): Promise<void> {
@@ -75,14 +81,14 @@ async function streamToOverlay(gen: AsyncGenerator<AnswerEvent>, label: string):
 /** Stream a coding solution from plain text (clipboard). */
 export function runCodingSolve(text: string): Promise<void> {
   lastSolve = { text };
-  return streamToOverlay(solveFromOcr(text, codingLanguage()), 'Coding problem (from clipboard)');
+  return streamToOverlay(solveFromOcr(text, codingLanguage(), codingFormat()), 'Coding problem (from clipboard)');
 }
 
 /** Stream a coding solution from a single screenshot/region image (OpenAI vision). */
 export function runCodingSolveFromImage(dataUrl: string): Promise<void> {
   lastSolve = { images: [dataUrl] };
   return streamToOverlay(
-    solveFromImages([dataUrl], codingLanguage()),
+    solveFromImages([dataUrl], codingLanguage(), codingFormat()),
     'Coding problem (from screenshot)',
   );
 }
@@ -104,8 +110,8 @@ export function resolveLast(): Promise<void> {
   }
   const gen =
     'text' in lastSolve
-      ? solveFromOcr(lastSolve.text, codingLanguage())
-      : solveFromImages(lastSolve.images, codingLanguage());
+      ? solveFromOcr(lastSolve.text, codingLanguage(), codingFormat())
+      : solveFromImages(lastSolve.images, codingLanguage(), codingFormat());
   return streamToOverlay(gen, 'Coding problem (re-solve)');
 }
 

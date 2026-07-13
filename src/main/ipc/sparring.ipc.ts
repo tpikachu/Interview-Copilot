@@ -5,7 +5,7 @@ import { sparringManager } from '../services/mock/sparringManager';
 
 const voice = z.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']).default('alloy');
 const interviewType = z
-  .enum(['behavioral', 'technical', 'coding', 'system_design', 'product', 'sales', 'general'])
+  .enum(['behavioral', 'technical', 'coding', 'system_design', 'general'])
   .default('general');
 
 export function registerSparringIpc(): void {
