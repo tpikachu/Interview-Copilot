@@ -74,7 +74,12 @@ describe('multi-image capture buffer', () => {
     addCapture('img-2');
     await solveCaptures();
     expect(solveFromImages).toHaveBeenCalledTimes(1);
-    expect(solveFromImages).toHaveBeenCalledWith(['img-1', 'img-2'], 'javascript', 'explanation');
+    expect(solveFromImages).toHaveBeenCalledWith(
+      ['img-1', 'img-2'],
+      'javascript',
+      'explanation',
+      expect.any(AbortSignal),
+    );
     expect(lastBufferImages()).toEqual([]); // buffer cleared after solving
   });
 });

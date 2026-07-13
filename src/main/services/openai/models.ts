@@ -99,9 +99,11 @@ export function reasoningEffort(key: ModelKey): ReasoningEffort | null {
   return (overrides[key] as ReasoningEffort) || defaultEfforts[key] || null;
 }
 
-/** GPT-5 family + o-series accept reasoning.effort; gpt-4.1 / gpt-4o reject it. */
+/** GPT-5 family + o-series accept reasoning.effort; gpt-4.1 / gpt-4o reject it —
+ *  and so do the chat-tuned GPT-5 variants (gpt-5-chat-latest etc.), which are
+ *  NON-reasoning despite the gpt-5 prefix. */
 export function isReasoningModel(id: string): boolean {
-  return /^(gpt-5|o\d)/i.test(id);
+  return /^(gpt-5|o\d)/i.test(id) && !/chat/i.test(id);
 }
 
 /** Responses-API reasoning param for a task — empty unless the resolved model is a

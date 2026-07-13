@@ -4,7 +4,11 @@ import type { AnswerEvent } from './answer';
 // Capture the request body passed to responses.stream, and feed back a fixed
 // fake stream (two text deltas + usage). Mock the model resolver so models.ts →
 // db → better-sqlite3 is never loaded.
-const h = vi.hoisted(() => ({ lastBody: null as Record<string, unknown> | null }));
+const h = vi.hoisted(() => ({
+  lastBody: null as Record<string, unknown> | null,
+  reasoning: false, // pretend the resolved answer model is a reasoning model
+  emitText: true, // pretend the stream produced visible text
+}));
 vi.mock('./client', () => ({
   openai: () => ({
     responses: {
@@ -12,6 +16,7 @@ vi.mock('./client', () => ({
         h.lastBody = body;
         return {
           async *[Symbol.asyncIterator]() {
+            if (!h.emitText) return; // reasoning ate the whole budget — no text
             yield { type: 'response.output_text.delta', delta: 'Hello' };
             yield { type: 'response.output_text.delta', delta: ' world' };
             yield { type: 'response.ignored.event' }; // non-delta events are skipped
@@ -22,7 +27,11 @@ vi.mock('./client', () => ({
     },
   }),
 }));
-vi.mock('./models', () => ({ model: () => 'gpt-4.1-mini' }));
+vi.mock('./models', () => ({
+  model: () => (h.reasoning ? 'gpt-5-mini' : 'gpt-4.1-mini'),
+  isReasoningModel: () => h.reasoning,
+  reasoningEffort: () => null,
+}));
 
 import { streamAnswer } from './answer';
 
@@ -50,6 +59,8 @@ const userPrompt = () => String((h.lastBody!.input as { role: string; content: s
 
 beforeEach(() => {
   h.lastBody = null;
+  h.reasoning = false;
+  h.emitText = true;
 });
 
 describe('streamAnswer — request body', () => {
@@ -90,6 +101,23 @@ describe('streamAnswer — request body', () => {
   it('gives pronunciation headroom above the format token cap', async () => {
     await collect(streamAnswer(baseInput({ format: 'key_points', pronunciation: true })));
     expect(h.lastBody!.max_output_tokens).toBe(220 + 160);
+  });
+
+  it('on a reasoning answer model: sends a low effort + reasoning-token headroom', async () => {
+    h.reasoning = true;
+    await collect(streamAnswer(baseInput({ format: 'key_points' })));
+    expect(h.lastBody!.reasoning).toEqual({ effort: 'low' });
+    expect(h.lastBody!.max_output_tokens).toBe(220 + 1024);
+  });
+
+  it('never sends a reasoning param to a non-reasoning model', async () => {
+    await collect(streamAnswer(baseInput()));
+    expect(h.lastBody!.reasoning).toBeUndefined();
+  });
+
+  it('throws (instead of a silent blank card) when the stream emits no text', async () => {
+    h.emitText = false;
+    await expect(collect(streamAnswer(baseInput()))).rejects.toThrow(/no text/i);
   });
 
   it('injects the chosen format and interview type', async () => {

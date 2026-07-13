@@ -85,15 +85,21 @@ export async function answerApplicationQuestions(input: {
     'Produce the JSON now.',
   ].join('\n');
 
-  const res = await openai().responses.create({
-    model: model('tailor'),
-    ...reasoningParam('tailor'),
-    input: [
-      { role: 'system', content: ANSWER_SYSTEM },
-      { role: 'user', content: user },
-    ],
-    text: { format: { type: 'json_object' } },
-  });
+  const res = await openai().responses.create(
+    {
+      model: model('tailor'),
+      ...reasoningParam('tailor'),
+      input: [
+        { role: 'system', content: ANSWER_SYSTEM },
+        { role: 'user', content: user },
+      ],
+      text: { format: { type: 'json_object' } },
+    },
+    // Non-streaming + latency-tolerant: allow long generations (a gpt-5 'best'
+    // preset can exceed the client's 60s default) and never silently retry at
+    // full cost — surface the error instead.
+    { timeout: 300_000, maxRetries: 0 },
+  );
 
   const raw = JSON.parse(res.output_text) as { answers?: unknown };
   const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
@@ -127,15 +133,19 @@ export async function tailorApplication(input: TailorInput): Promise<TailorResul
     'Produce the JSON now.',
   ].join('\n');
 
-  const res = await openai().responses.create({
-    model: model('tailor'),
-    ...reasoningParam('tailor'),
-    input: [
-      { role: 'system', content: SYSTEM },
-      { role: 'user', content: user },
-    ],
-    text: { format: { type: 'json_object' } },
-  });
+  const res = await openai().responses.create(
+    {
+      model: model('tailor'),
+      ...reasoningParam('tailor'),
+      input: [
+        { role: 'system', content: SYSTEM },
+        { role: 'user', content: user },
+      ],
+      text: { format: { type: 'json_object' } },
+    },
+    // See answerApplicationQuestions: long-generation headroom, no silent retries.
+    { timeout: 300_000, maxRetries: 0 },
+  );
 
   const raw = JSON.parse(res.output_text) as Partial<TailorResult> & { answers?: unknown };
   const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');

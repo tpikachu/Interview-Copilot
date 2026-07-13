@@ -106,6 +106,11 @@ describe('isReasoningModel()', () => {
       expect(isReasoningModel(id)).toBe(false);
     }
   });
+  it('does not flag chat-tuned GPT-5 variants (non-reasoning despite the prefix)', () => {
+    for (const id of ['gpt-5-chat-latest', 'gpt-5.1-chat', 'GPT-5-CHAT']) {
+      expect(isReasoningModel(id)).toBe(false);
+    }
+  });
 });
 
 describe('reasoningEffort()', () => {

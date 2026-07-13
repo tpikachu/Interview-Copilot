@@ -127,37 +127,38 @@ export default function Overlay() {
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
   const cleanup = useRef<(() => void)[]>([]);
-  // Streamed tokens arrive far faster than the screen refreshes. Buffer them and
+  // Streamed tokens arrive far faster than the screen refreshes. Buffer them PER
+  // QUESTION (streams can overlap — e.g. a coding solve during a live answer) and
   // flush once per animation frame so the (re-parsed) markdown renders at most
-  // ~60×/sec instead of once per token.
-  const pendingTokens = useRef('');
+  // ~60×/sec instead of once per token. One buffer per questionId means concurrent
+  // streams can never interleave into the wrong card.
+  const pendingTokens = useRef(new Map<string, string>());
   const flushHandle = useRef<number | null>(null);
-  // The questionId whose answer is currently streaming — so buffered tokens flush to
-  // the RIGHT card (routing by id supports regenerating any card, not just the last).
-  const streamingId = useRef('');
 
   useEffect(() => {
     const flush = () => {
       flushHandle.current = null;
-      if (!pendingTokens.current) return;
-      const chunk = pendingTokens.current;
-      pendingTokens.current = '';
-      setCards((cs) => appendById(cs, streamingId.current, chunk));
+      if (pendingTokens.current.size === 0) return;
+      const chunks = [...pendingTokens.current.entries()];
+      pendingTokens.current.clear();
+      setCards((cs) => chunks.reduce((acc, [qid, chunk]) => appendById(acc, qid, chunk), cs));
     };
     const scheduleFlush = () => {
       if (flushHandle.current == null) flushHandle.current = requestAnimationFrame(flush);
     };
+    /** Drop ONE stream's buffered tokens (its answer is being reset/re-streamed). */
+    const dropPending = (questionId: string) => {
+      pendingTokens.current.delete(questionId);
+    };
     const cancelFlush = () => {
       if (flushHandle.current != null) cancelAnimationFrame(flushHandle.current);
       flushHandle.current = null;
-      pendingTokens.current = '';
+      pendingTokens.current.clear();
     };
 
     cleanup.current.push(
       api.events.onQuestionDetected((p) => {
         const q = p as { id: string; text: string; type?: string };
-        cancelFlush();
-        streamingId.current = q.id;
         // History on: collapse prior cards and add a fresh one. Off: replace.
         setCards((cs) =>
           addCard(
@@ -186,8 +187,10 @@ export default function Overlay() {
       }),
       api.events.onAnswerDelta((p) => {
         const d = p as { questionId: string; token: string };
-        streamingId.current = d.questionId;
-        pendingTokens.current += d.token;
+        pendingTokens.current.set(
+          d.questionId,
+          (pendingTokens.current.get(d.questionId) ?? '') + d.token,
+        );
         scheduleFlush();
       }),
       api.events.onAnswerMeta((p) => {
@@ -202,8 +205,8 @@ export default function Overlay() {
       // tokens don't append to the old answer. Reuses the same card (routed by id).
       api.events.onAnswerReset((p) => {
         const qid = (p as { questionId: string }).questionId;
-        cancelFlush();
-        streamingId.current = qid;
+        // Drop ONLY this stream's buffered tokens — concurrent streams keep theirs.
+        dropPending(qid);
         // Also expand it — regenerating a collapsed history card should surface it.
         setCards((cs) =>
           patchById(cs, qid, {
@@ -379,7 +382,7 @@ export default function Overlay() {
       cancelAnimationFrame(flushHandle.current);
       flushHandle.current = null;
     }
-    pendingTokens.current = '';
+    pendingTokens.current.clear(); // full clear — every stream's buffer goes
     setCards([]); // clear all answers (each card also has its own × remove)
     void api.session.clearAnswer();
   };
@@ -407,22 +410,30 @@ export default function Overlay() {
     void api.settings.set({ audio: { source, micDeviceId: device } });
   };
 
-  // Persist the coding-solver model/effort. Merges into the full override maps so we
-  // don't wipe other tasks' overrides ('' clears the key → falls back to the default).
-  const saveCoding = (next: { model?: string; effort?: string }) => {
+  // Persist the coding-solver model/effort. Read-modify-write against FRESH settings
+  // (not the boot-time snapshot): the overlay window lives for the whole app session,
+  // so merging into stale maps would silently revert overrides changed later from the
+  // dashboard Settings page. '' clears the key → falls back to the default.
+  const saveCoding = async (next: { model?: string; effort?: string }) => {
     const m = next.model !== undefined ? next.model : codingModel;
     const e = next.effort !== undefined ? next.effort : codingEffort;
     setCodingModel(m);
     setCodingEffort(e);
-    const models = { ...modelsRef.current };
-    if (m) models.coding = m;
-    else delete models.coding;
-    const efforts = { ...effortsRef.current };
-    if (e) efforts.coding = e;
-    else delete efforts.coding;
-    modelsRef.current = models;
-    effortsRef.current = efforts;
-    void api.settings.set({ models, reasoningEfforts: efforts });
+    try {
+      const fresh = (await api.settings.get()) as AppSettings;
+      const models = { ...(fresh.models ?? {}) };
+      if (m) models.coding = m;
+      else delete models.coding;
+      const efforts = { ...(fresh.reasoningEfforts ?? {}) };
+      if (e) efforts.coding = e;
+      else delete efforts.coding;
+      modelsRef.current = models;
+      effortsRef.current = efforts;
+      await api.settings.set({ models, reasoningEfforts: efforts });
+    } catch {
+      // Persistence failed — the pickers still show the chosen value; the next
+      // successful save (or app restart) reconciles.
+    }
   };
 
   const sendAsk = () => {
@@ -1096,7 +1107,7 @@ export default function Overlay() {
                 <span className="mb-1 block text-xs font-medium text-neutral-400">Model</span>
                 <select
                   value={codingModel}
-                  onChange={(e) => saveCoding({ model: e.target.value })}
+                  onChange={(e) => void saveCoding({ model: e.target.value })}
                   className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-indigo-500"
                 >
                   <option value="">Default ({codingDefaults.model})</option>
@@ -1113,7 +1124,7 @@ export default function Overlay() {
                 </span>
                 <select
                   value={codingEffort}
-                  onChange={(e) => saveCoding({ effort: e.target.value })}
+                  onChange={(e) => void saveCoding({ effort: e.target.value })}
                   className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-indigo-500"
                 >
                   <option value="">Default ({codingDefaults.effort})</option>

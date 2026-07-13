@@ -56,15 +56,29 @@ export function solveCaptures(): Promise<void> {
     images.length > 1
       ? `Coding problem (${images.length} screenshots)`
       : 'Coding problem (from screenshot)';
-  return streamToOverlay(solveFromImages(images, codingLanguage(), codingFormat()), label);
+  return streamToOverlay(
+    (signal) => solveFromImages(images, codingLanguage(), codingFormat(), signal),
+    label,
+  );
 }
 
-async function streamToOverlay(gen: AsyncGenerator<AnswerEvent>, label: string): Promise<void> {
+// The one in-flight solve. A new solve ABORTS the previous one — concurrent solves
+// would interleave in the Cue Card and double the spend for an answer nobody reads.
+let activeSolve: AbortController | null = null;
+
+async function streamToOverlay(
+  makeGen: (signal: AbortSignal) => AsyncGenerator<AnswerEvent>,
+  label: string,
+): Promise<void> {
+  activeSolve?.abort();
+  const abort = new AbortController();
+  activeSolve = abort;
+
   const questionId = crypto.randomUUID();
   showOverlay();
   broadcast(EVENTS.questionDetected, { id: questionId, text: label, type: 'coding' }, ['overlay']);
   try {
-    for await (const ev of gen) {
+    for await (const ev of makeGen(abort.signal)) {
       if (ev.type === 'delta') {
         broadcast(EVENTS.answerDelta, { questionId, token: ev.token }, ['overlay']);
       } else if (ev.type === 'meta') {
@@ -72,8 +86,12 @@ async function streamToOverlay(gen: AsyncGenerator<AnswerEvent>, label: string):
       }
     }
   } catch (e) {
-    broadcast(EVENTS.sessionError, { message: normalizeOpenAIError(e) }, ['overlay', 'main']);
+    // Superseded by a newer solve — drop silently; the new stream owns the Cue Card.
+    if (!abort.signal.aborted) {
+      broadcast(EVENTS.sessionError, { message: normalizeOpenAIError(e) }, ['overlay', 'main']);
+    }
   } finally {
+    if (activeSolve === abort) activeSolve = null;
     broadcast(EVENTS.answerDone, { questionId }, ['overlay']);
   }
 }
@@ -81,14 +99,17 @@ async function streamToOverlay(gen: AsyncGenerator<AnswerEvent>, label: string):
 /** Stream a coding solution from plain text (clipboard). */
 export function runCodingSolve(text: string): Promise<void> {
   lastSolve = { text };
-  return streamToOverlay(solveFromOcr(text, codingLanguage(), codingFormat()), 'Coding problem (from clipboard)');
+  return streamToOverlay(
+    (signal) => solveFromOcr(text, codingLanguage(), codingFormat(), signal),
+    'Coding problem (from clipboard)',
+  );
 }
 
 /** Stream a coding solution from a single screenshot/region image (OpenAI vision). */
 export function runCodingSolveFromImage(dataUrl: string): Promise<void> {
   lastSolve = { images: [dataUrl] };
   return streamToOverlay(
-    solveFromImages([dataUrl], codingLanguage(), codingFormat()),
+    (signal) => solveFromImages([dataUrl], codingLanguage(), codingFormat(), signal),
     'Coding problem (from screenshot)',
   );
 }
@@ -108,11 +129,14 @@ export function resolveLast(): Promise<void> {
     broadcast(EVENTS.answerDone, { questionId }, ['overlay']);
     return Promise.resolve();
   }
-  const gen =
-    'text' in lastSolve
-      ? solveFromOcr(lastSolve.text, codingLanguage(), codingFormat())
-      : solveFromImages(lastSolve.images, codingLanguage(), codingFormat());
-  return streamToOverlay(gen, 'Coding problem (re-solve)');
+  const last = lastSolve;
+  return streamToOverlay(
+    (signal) =>
+      'text' in last
+        ? solveFromOcr(last.text, codingLanguage(), codingFormat(), signal)
+        : solveFromImages(last.images, codingLanguage(), codingFormat(), signal),
+    'Coding problem (re-solve)',
+  );
 }
 
 /**
