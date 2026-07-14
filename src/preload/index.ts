@@ -201,6 +201,7 @@ const api = {
     delete: (id: string) => invoke(IPC.session.delete, { id }),
     generateReport: (sessionId: string) => invoke(IPC.session.generateReport, { sessionId }),
     getReport: (sessionId: string) => invoke(IPC.session.getReport, { sessionId }),
+    practiceStats: () => invoke(IPC.session.practiceStats),
   },
   mock: {
     start: (
@@ -269,7 +270,7 @@ const api = {
     copyText: (text: string) => invoke<{ copied: true }>(IPC.overlay.copyText, { text }),
   },
   privacy: {
-    get: () => invoke<{ enabled: boolean }>(IPC.privacy.get),
+    get: () => invoke<{ enabled: boolean; supported: boolean }>(IPC.privacy.get),
     toggle: () => invoke<{ enabled: boolean }>(IPC.privacy.toggle),
     set: (enabled: boolean) => invoke<{ enabled: boolean }>(IPC.privacy.set, { enabled }),
   },
@@ -296,6 +297,7 @@ const api = {
     onAnswerMeta: (cb: (p: unknown) => void) => on(EVENTS.answerMeta, cb),
     onAnswerDone: (cb: (p: unknown) => void) => on(EVENTS.answerDone, cb),
     onAnswerReset: (cb: (p: unknown) => void) => on(EVENTS.answerReset, cb),
+    onAnswerFollowup: (cb: (p: unknown) => void) => on(EVENTS.answerFollowup, cb),
     onContextSent: (cb: (p: unknown) => void) => on(EVENTS.contextSent, cb),
     onSessionError: (cb: (p: unknown) => void) => on(EVENTS.sessionError, cb),
     onOverlayApplySettings: (cb: (p: unknown) => void) => on(EVENTS.overlayApplySettings, cb),
@@ -312,6 +314,9 @@ const api = {
     onClientInfo: (cb: (p: ClientInfo | null) => void) => on(EVENTS.clientInfo, cb),
     onAnswerPrefs: (cb: (p: AnswerPrefs) => void) => on(EVENTS.answerPrefs, cb),
     onAudioLevel: (cb: (p: { level: number }) => void) => on(EVENTS.audioLevel, cb),
+    onTranscriberStatus: (
+      cb: (p: { status: 'reconnecting' | 'connected' | 'disconnected' }) => void,
+    ) => on(EVENTS.transcriberStatus, cb),
     onSavePrompt: (cb: (p: SavePrompt) => void) => on(EVENTS.savePrompt, cb),
     onCaptureBuffer: (cb: (p: { images: string[] }) => void) => on(EVENTS.captureBuffer, cb),
   },

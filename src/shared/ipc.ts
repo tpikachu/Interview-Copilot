@@ -91,6 +91,7 @@ export const IPC = {
     delete: 'session:delete',
     generateReport: 'session:generate-report',
     getReport: 'session:get-report',
+    practiceStats: 'session:practice-stats', // Practice Loop aggregates (Reports)
     ask: 'session:ask',
     askActive: 'session:ask-active',
     setInterviewType: 'session:set-interview-type',
@@ -159,6 +160,7 @@ export const EVENTS = {
   answerMeta: 'session:answer-meta',
   answerDone: 'session:answer-done',
   answerReset: 'session:answer-reset', // regenerate: clear the Cue Card answer, keep the transcript
+  answerFollowup: 'session:answer-followup', // post-stream predicted interviewer follow-up
   contextSent: 'session:context',
   sessionError: 'session:error',
   overlayApplySettings: 'overlay:apply-settings',
@@ -174,6 +176,7 @@ export const EVENTS = {
   clientInfo: 'session:client-info', // the live session's client (job) notes, for the Cue Card
   answerPrefs: 'session:answer-prefs', // current format/length/pronunciation, for the Cue Card toggles
   audioLevel: 'session:audio-level', // throttled mic level (0-1) for the Cue Card meter
+  transcriberStatus: 'session:transcriber-status', // STT socket lifecycle: reconnecting | connected
   savePrompt: 'session:save-prompt', // a session just stopped → ask the dashboard to save/discard it
   captureBuffer: 'capture:buffer', // current multi-image problem captures, for the Cue Card strip
 } as const;

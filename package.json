@@ -1,6 +1,6 @@
 {
   "name": "ai-interview-assistant",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "BrainCue Copilot — desktop AI interview copilot (Electron + React + OpenAI). Local-first data, BYO OpenAI key.",
   "author": "tpikachu",
   "license": "MIT",
@@ -13,7 +13,7 @@
   "scripts": {
     "dev": "node scripts/run-electron-vite.mjs dev",
     "start": "node scripts/run-electron-vite.mjs preview",
-    "build": "npm run typecheck && electron-vite build",
+    "build": "npm run typecheck && node scripts/run-electron-vite.mjs build",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",

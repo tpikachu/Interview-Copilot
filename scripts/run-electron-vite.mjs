@@ -9,6 +9,13 @@ import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 
+// Normalize a lowercase Windows drive letter in cwd (c:\… → C:\…). Some shells
+// hand out a lowercase drive; rollup/vite then see the same module under two
+// path spellings and the build can fail with a spurious "error during build".
+if (process.platform === 'win32' && /^[a-z]:/.test(process.cwd())) {
+  process.chdir(process.cwd()[0].toUpperCase() + process.cwd().slice(1));
+}
+
 const require = createRequire(import.meta.url);
 const pkgJsonPath = require.resolve('electron-vite/package.json');
 const pkg = require('electron-vite/package.json');

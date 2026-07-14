@@ -82,6 +82,7 @@ export default function Overlay() {
   const [openCite, setOpenCite] = useState<string | null>(null); // expanded citation: `${cardId}:${n}`
   const [copiedId, setCopiedId] = useState<number | null>(null); // card id showing a brief "copied ✓"
   const [privacy, setPrivacy] = useState(true);
+  const [privacyUnsupported, setPrivacyUnsupported] = useState(false); // Linux: no-op
   const [clientInfo, setClientInfo] = useState<ClientInfo | null>(null);
   const [showClient, setShowClient] = useState(false);
   // Live answer controls (mirrored to the active session via setAnswerPrefs).
@@ -109,6 +110,7 @@ export default function Overlay() {
 
   // Backend session failure (transcription socket dropped, OpenAI auth, etc.).
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const [reconnecting, setReconnecting] = useState(false); // STT socket auto-recovery in progress
 
   // Manual "Ask" box (Cue Card) + audio level meter + resizable transcript.
   const [askText, setAskText] = useState('');
@@ -197,6 +199,10 @@ export default function Overlay() {
         const m = p as AnswerMetaEvent;
         setCards((cs) => patchById(cs, m.questionId, { meta: m }));
       }),
+      api.events.onAnswerFollowup((p) => {
+        const f = p as { questionId: string; followup: string };
+        setCards((cs) => patchById(cs, f.questionId, { followup: f.followup }));
+      }),
       api.events.onAnswerDone((p) => {
         flush();
         setCards((cs) => patchById(cs, (p as { questionId: string }).questionId, { streaming: false }));
@@ -213,6 +219,7 @@ export default function Overlay() {
             answer: '',
             meta: null,
             context: null,
+            followup: null,
             streaming: true,
             collapsed: false,
           }),
@@ -226,6 +233,7 @@ export default function Overlay() {
       api.events.onSessionError((p) =>
         setSessionError((p as { message?: string }).message || 'Session error.'),
       ),
+      api.events.onTranscriberStatus((p) => setReconnecting(p.status === 'reconnecting')),
       api.events.onSessionState((p) => {
         const s = p as { paused: boolean; status: string };
         const nowLive = s.status === 'live';
@@ -244,6 +252,7 @@ export default function Overlay() {
           setCards([]);
           setAtBottom(true);
           setSessionError(null);
+          setReconnecting(false);
         }
         // Session stopped: drop the dangling interim partial + streaming cursor so
         // the Cue Card doesn't look like it's still listening.
@@ -252,6 +261,7 @@ export default function Overlay() {
           setCards((cs) => cs.map((c) => ({ ...c, streaming: false })));
           setLevel(0);
           setSpeaking(false);
+          setReconnecting(false);
         }
         prevLive.current = nowLive;
       }),
@@ -276,7 +286,10 @@ export default function Overlay() {
         setSpeaking((was) => (was ? p.level > SPEAK_OFF : p.level > SPEAK_ON));
       }),
     );
-    void api.privacy.get().then((p) => setPrivacy((p as { enabled: boolean }).enabled));
+    void api.privacy.get().then((p) => {
+      setPrivacy(p.enabled);
+      setPrivacyUnsupported(!p.supported);
+    });
     // Seed the audio-device + coding-solver controls from persisted settings.
     void api.settings.get().then((s) => {
       const ss = s as AppSettings;
@@ -532,15 +545,30 @@ export default function Overlay() {
               : ''}
           </span>
           {live && !paused && speaking && <EqualizerBars />}
+          {live && reconnecting && (
+            <span className="shrink-0 rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-px text-[10px] font-medium text-amber-300">
+              reconnecting audio…
+            </span>
+          )}
         </span>
         <div className="flex items-center gap-0.5" style={noDrag}>
           <Btn
-            active={!privacy}
-            tone={privacy ? 'default' : 'warn'}
+            active={!privacy || privacyUnsupported}
+            tone={privacy && !privacyUnsupported ? 'default' : 'warn'}
             onClick={togglePrivacy}
-            title={privacy ? 'Hidden from screen share — click to reveal' : 'VISIBLE to screen share — click to hide'}
+            title={
+              privacyUnsupported
+                ? 'Privacy Mode has NO effect on Linux — this window IS visible to screen shares'
+                : privacy
+                  ? 'Hidden from screen share — click to reveal'
+                  : 'VISIBLE to screen share — click to hide'
+            }
           >
-            {privacy ? <EyeOffIcon className="h-3.5 w-3.5" /> : <EyeIcon className="h-3.5 w-3.5" />}
+            {privacy && !privacyUnsupported ? (
+              <EyeOffIcon className="h-3.5 w-3.5" />
+            ) : (
+              <EyeIcon className="h-3.5 w-3.5" />
+            )}
           </Btn>
           <Btn active={clickthrough} onClick={toggleClickthrough} title="Click-through (mouse passes through)">
             <CursorIcon className="h-3.5 w-3.5" />
@@ -955,6 +983,12 @@ export default function Overlay() {
                       <span className="text-xs text-neutral-500">Listening…</span>
                     ) : null}
                     {c.streaming && <span className="ml-0.5 animate-pulse">▋</span>}
+                    {!c.streaming && c.followup && (
+                      <p className="mt-1.5 rounded border-l-2 border-indigo-500/60 bg-indigo-500/5 px-2 py-1 text-[11px] text-indigo-200/90">
+                        <span className="font-medium text-indigo-300">Likely follow-up:</span>{' '}
+                        {c.followup}
+                      </p>
+                    )}
                     <StoryCue card={c} />
                     <Citations card={c} openKey={openCite} onToggle={setOpenCite} />
                   </div>

@@ -138,6 +138,9 @@ export interface SparringFeedback {
   strengths: string[]; // what landed well
   improvements: string[]; // concrete things to do better next time
   tip: string; // one actionable pointer (e.g. a résumé item they could have used)
+  /** The one competency the question probed (closed StoryCompetency set) — powers
+   *  the per-competency practice trends in Reports. Null if unclassifiable. */
+  competency: StoryCompetency | null;
 }
 
 /** A pre-interview prep brief: a résumé × JD × company gap analysis generated
@@ -225,10 +228,15 @@ export interface RetrievedChunk {
  *  retriever (inclusion) and the Cue Card (display) agree on the threshold. */
 export const STORY_CUE_MIN_SCORE = 0.3;
 
+/** What produced a session: a real interview, a mock rehearsal (transient — the
+ *  row is deleted at stop), or a Sparring practice drill (persisted coaching). */
+export type SessionKind = 'live' | 'mock' | 'sparring';
+
 export interface Session {
   id: string;
   profileId: string;
   jobId: string | null;
+  kind: SessionKind;
   interviewType: InterviewType;
   status: SessionStatus;
   startedAt: number | null;
@@ -261,11 +269,8 @@ export interface AiAnswer {
   id: string;
   questionId: string;
   directAnswer: string;
-  talkingPoints: string[];
-  resumeMatch: string | null;
-  star: { situation: string; task: string; action: string; result: string } | null;
-  clarifyingQuestion: string | null;
   riskWarning: string | null;
+  /** Predicted likely interviewer follow-up (v1.5) — generated post-stream. */
   followupQuestion: string | null;
   model: string;
   tokens: { prompt: number; completion: number } | null;
@@ -280,6 +285,16 @@ export interface SessionReport {
   improvements: string[];
   perQuestion: { question: string; assessment: string }[];
   createdAt: number;
+}
+
+/** Aggregated Practice Loop stats across all sparring drills (Reports). */
+export interface PracticeStats {
+  sessions: number; // sparring drills with at least one coached answer
+  answers: number; // total coached answers
+  avgRating: number; // mean rating across all answers (0 when none)
+  byCompetency: { competency: StoryCompetency; avgRating: number; count: number }[]; // count desc
+  /** Per-drill average rating, oldest → newest (trend line; last 12 drills). */
+  recent: { sessionId: string; createdAt: number; avgRating: number; answers: number }[];
 }
 
 export interface SessionListItem extends Session {
@@ -339,12 +354,12 @@ export interface AnswerDeltaEvent {
 }
 export interface AnswerMetaEvent {
   questionId: string;
-  talkingPoints: string[];
-  resumeMatch: string | null;
-  star: AiAnswer['star'];
-  clarifyingQuestion: string | null;
   riskWarning: string | null;
-  followupQuestion: string | null;
+}
+/** Post-stream follow-up prediction for a just-answered question (v1.5). */
+export interface AnswerFollowupEvent {
+  questionId: string;
+  followup: string;
 }
 export interface SessionStateEvent {
   status: SessionStatus;

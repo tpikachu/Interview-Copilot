@@ -8,6 +8,7 @@ import { sessionsRepo } from '../../db/repositories/sessions.repo';
 import { transcribeChunk } from '../openai/transcription';
 import { classifyQuestion } from '../openai/questions';
 import { streamAnswer } from '../openai/answer';
+import { predictFollowup } from '../openai/followup';
 import { normalizeOpenAIError } from '../openai/client';
 import { retrieve } from '../rag/retriever';
 import { RealtimeTranscriber } from '../openai/realtime';
@@ -47,12 +48,18 @@ interface LiveState {
 
 let live: LiveState | null = null;
 let lastLevelAt = 0; // throttle the Cue Card audio-level meter broadcasts
+// Follow-up predictions are fire-and-forget; a regenerate can leave an OLD
+// answer's prediction in flight. Each generateAnswer bumps its question's
+// generation, and a prediction only lands if its generation is still current —
+// a stale follow-up must never annotate (or persist onto) a newer answer.
+const followupGeneration = new Map<string, number>();
 
 function toSession(r: typeof schema.sessions.$inferSelect): Session {
   return {
     id: r.id,
     profileId: r.profileId,
     jobId: r.jobId,
+    kind: r.kind as Session['kind'],
     interviewType: r.interviewType as InterviewType,
     status: r.status as Session['status'],
     startedAt: r.startedAt,
@@ -75,6 +82,7 @@ export const sessionManager = {
   }): void {
     if (live?.answerAbort) live.answerAbort.abort(); // cancel any prior in-flight answer
     if (live?.transcriber) live.transcriber.stop(); // never leak a prior socket
+    followupGeneration.clear(); // a fresh session invalidates all pending predictions
     live = {
       sessionId: opts.sessionId,
       profileId: opts.profileId,
@@ -103,6 +111,9 @@ export const sessionManager = {
             broadcast(EVENTS.transcriptDelta, { text, isFinal: false, speaker: 'interviewer' }),
           onFinal: (text) => void this.processFinalTranscript(opts.sessionId, text),
           onError: (message) => broadcast(EVENTS.sessionError, { message }),
+          // Socket lifecycle → a subtle "reconnecting audio…" pill in the Cue Card
+          // (an unexpected drop mid-interview now recovers itself; see realtime.ts).
+          onStatus: (status) => broadcast(EVENTS.transcriberStatus, { status }, ['overlay']),
         },
         opts.language || 'en',
       );
@@ -151,7 +162,7 @@ export const sessionManager = {
     const id = crypto.randomUUID();
     db()
       .insert(schema.sessions)
-      .values({ id, profileId, jobId, interviewType, status: 'live', startedAt: Date.now() })
+      .values({ id, profileId, jobId, kind: 'live', interviewType, status: 'live', startedAt: Date.now() })
       .run();
     this.goLive({
       sessionId: id,
@@ -444,6 +455,10 @@ export const sessionManager = {
     let answer = '';
     let tokens: { prompt: number; completion: number } | null = null;
     let meta: Record<string, unknown> = {};
+    // Invalidate any in-flight follow-up prediction from a previous take of this
+    // question — bumped at STREAM START so even an aborted regenerate supersedes.
+    const followupGen = (followupGeneration.get(questionId) ?? 0) + 1;
+    followupGeneration.set(questionId, followupGen);
     const abort = new AbortController();
     if (live) {
       live.answering = true;
@@ -513,18 +528,37 @@ export const sessionManager = {
         id: crypto.randomUUID(),
         questionId,
         directAnswer: answer,
-        talkingPoints: JSON.stringify((meta.talkingPoints as string[]) ?? []),
-        resumeMatch: (meta.resumeMatch as string) ?? null,
-        star: meta.star ? JSON.stringify(meta.star) : null,
-        clarifyingQuestion: (meta.clarifyingQuestion as string) ?? null,
         riskWarning: (meta.riskWarning as string) ?? null,
-        followupQuestion: (meta.followupQuestion as string) ?? null,
         model: 'answer',
         tokens: tokens ? JSON.stringify(tokens) : null,
       })
       .run();
 
     broadcast(EVENTS.answerDone, { questionId });
+
+    // Predict the interviewer's likely follow-up AFTER the answer is done — a
+    // cheap classify-tier call that can never touch first-token latency.
+    // Fire-and-forget: a failed prediction is silent. Skipped for mock
+    // rehearsals (the AI interviewer generates its own next question anyway).
+    if (answer && live && !live.isMock && live.sessionId === sessionId) {
+      const interviewType = live.interviewType;
+      void predictFollowup({ question: questionText, answer, interviewType })
+        .then((followup) => {
+          if (!followup) return;
+          // Stale guards: a regenerate superseded this prediction, or the
+          // session changed while it was in flight — drop it silently.
+          if (followupGeneration.get(questionId) !== followupGen) return;
+          if (!live || live.sessionId !== sessionId) return;
+          db()
+            .update(schema.aiAnswers)
+            .set({ followupQuestion: followup })
+            .where(eq(schema.aiAnswers.questionId, questionId))
+            .run();
+          broadcast(EVENTS.answerFollowup, { questionId, followup }, ['overlay']);
+        })
+        .catch((e) => log.warn('followup prediction failed', e));
+    }
+
     return { questionId };
   },
 

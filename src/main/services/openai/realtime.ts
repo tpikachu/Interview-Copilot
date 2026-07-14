@@ -11,7 +11,20 @@ export interface RealtimeCallbacks {
   onSpeechStop?: () => void;
   onError?: (message: string) => void;
   onOpen?: () => void;
+  /** Connection lifecycle for the UI: 'reconnecting' while automatic recovery is
+   *  in progress, 'connected' when a (re)connection is established, and
+   *  'disconnected' when recovery has given up for good (terminal — otherwise
+   *  the UI would show "reconnecting…" forever over a dead socket). */
+  onStatus?: (status: 'reconnecting' | 'connected' | 'disconnected') => void;
 }
+
+/** Bounded automatic recovery from an unexpected socket drop mid-interview —
+ *  the worst possible moment to require a manual stop/resume. Exponential
+ *  backoff; a connection that stays up ≥ STABLE_CONNECTION_MS refills the
+ *  retry budget so one blip an hour never exhausts it. */
+const MAX_RECONNECT_ATTEMPTS = 5;
+const STABLE_CONNECTION_MS = 30_000;
+const reconnectDelayMs = (attempt: number) => Math.min(8_000, 500 * 2 ** attempt);
 
 /**
  * Streaming speech-to-text via the OpenAI Realtime API (transcription intent).
@@ -24,7 +37,10 @@ export class RealtimeTranscriber {
   private ws: WebSocket | null = null;
   private ready = false;
   private closing = false;
-  private errored = false; // a specific error was already surfaced this connection
+  private surfacedError = false; // a specific error was already surfaced this reconnect cycle
+  private reconnectAttempts = 0;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private connectedAt = 0;
 
   constructor(
     private cb: RealtimeCallbacks,
@@ -32,13 +48,21 @@ export class RealtimeTranscriber {
   ) {}
 
   start(): void {
+    this.closing = false;
+    this.surfacedError = false;
+    this.reconnectAttempts = 0;
+    this.connect();
+  }
+
+  private connect(): void {
     const key = apiKeyStore.getDecrypted();
     if (!key) {
+      // Terminal for the recovery cycle too — a pending "reconnecting…" state
+      // must not outlive a bail-out (the key was removed mid-cycle).
+      this.cb.onStatus?.('disconnected');
       this.cb.onError?.('No OpenAI API key configured.');
       return;
     }
-    this.closing = false;
-    this.errored = false;
     // GA Realtime API: the beta shape was retired (the `OpenAI-Beta: realtime=v1`
     // header + `transcription_session.update` event), which is why the server now
     // rejects beta connections with `beta_api_shape_disabled`.
@@ -47,8 +71,12 @@ export class RealtimeTranscriber {
         Authorization: `Bearer ${key}`,
       },
     });
+    // Guard every handler against a STALE socket: after a reconnect replaces
+    // this.ws, late events from the old connection must not touch shared state.
+    const ws = this.ws;
 
-    this.ws.on('open', () => {
+    ws.on('open', () => {
+      if (ws !== this.ws) return;
       // GA transcription-session config: nested under session.audio.input. The
       // server response event names (…input_audio_transcription.delta/.completed)
       // are unchanged, so the parser in realtimeEvents.ts still applies.
@@ -76,29 +104,68 @@ export class RealtimeTranscriber {
         },
       });
       this.ready = true;
+      this.connectedAt = Date.now();
+      this.surfacedError = false; // a fresh connection starts a clean error cycle
+      this.cb.onStatus?.('connected');
       this.cb.onOpen?.();
-      log.info('realtime: transcription session opened');
+      log.info(
+        this.reconnectAttempts > 0
+          ? `realtime: transcription session reconnected (attempt ${this.reconnectAttempts})`
+          : 'realtime: transcription session opened',
+      );
     });
 
-    this.ws.on('message', (data) => this.handle(data.toString()));
-    this.ws.on('error', (err) => {
+    ws.on('message', (data) => {
+      if (ws !== this.ws) return;
+      this.handle(data.toString());
+    });
+    ws.on('error', (err) => {
+      if (ws !== this.ws) return;
       log.error('realtime: ws error', err.message);
-      if (!this.closing) {
-        this.errored = true;
+      // Surface only the FIRST specific error per reconnect cycle (an expired key
+      // fails every retry identically — one toast, not five).
+      if (!this.closing && !this.surfacedError) {
+        this.surfacedError = true;
         this.cb.onError?.(`Realtime transcription error: ${err.message}`);
       }
     });
-    this.ws.on('close', (code, reason) => {
+    ws.on('close', (code, reason) => {
+      if (ws !== this.ws) return;
       this.ready = false;
-      // An UNEXPECTED close would otherwise go unreported while the mic keeps streaming
-      // into a dead socket — the interview silently goes deaf. But 'ws' fires 'error'
-      // THEN 'close' for the same failure, so skip the generic message when a specific
-      // error was already surfaced (don't clobber "expired key" with "disconnected").
-      if (!this.closing) {
-        log.warn(`realtime: ws closed (${code}) ${reason.toString()}`);
-        if (!this.errored) {
-          this.cb.onError?.('Transcription disconnected — stop and resume the interview to reconnect.');
-        }
+      if (this.closing) return;
+      log.warn(`realtime: ws closed (${code}) ${reason.toString()}`);
+
+      // A connection that stayed up long enough refills the retry budget — the
+      // cap is for a hard outage, not for occasional blips over a long interview.
+      if (this.connectedAt && Date.now() - this.connectedAt >= STABLE_CONNECTION_MS) {
+        this.reconnectAttempts = 0;
+      }
+      this.connectedAt = 0;
+
+      if (this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        const delay = reconnectDelayMs(this.reconnectAttempts);
+        this.reconnectAttempts += 1;
+        this.cb.onStatus?.('reconnecting');
+        log.warn(
+          `realtime: reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`,
+        );
+        this.reconnectTimer = setTimeout(() => {
+          this.reconnectTimer = null;
+          if (!this.closing) this.connect();
+        }, delay);
+        return;
+      }
+
+      // Out of retries: the interview would otherwise silently go deaf while the
+      // mic keeps streaming into a dead socket. Emit the terminal status (so the
+      // UI's "reconnecting…" pill doesn't lie forever) and, if a specific error
+      // was already surfaced this cycle (e.g. expired key), don't clobber it
+      // with a generic one.
+      this.cb.onStatus?.('disconnected');
+      if (!this.surfacedError) {
+        this.cb.onError?.(
+          'Transcription disconnected and could not reconnect — stop and resume the interview.',
+        );
       }
     });
   }
@@ -112,6 +179,10 @@ export class RealtimeTranscriber {
   stop(): void {
     this.closing = true;
     this.ready = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     try {
       this.ws?.close();
     } catch {
@@ -141,7 +212,14 @@ export class RealtimeTranscriber {
         this.cb.onSpeechStop?.();
         break;
       case 'error':
-        this.cb.onError?.(action.message);
+        // In-band server errors go through the same once-per-cycle latch as
+        // socket errors — a quota error that recurs on every reconnect attempt
+        // must surface once, and the latch stops the exhaustion message from
+        // clobbering the specific cause afterwards.
+        if (!this.surfacedError) {
+          this.surfacedError = true;
+          this.cb.onError?.(action.message);
+        }
         break;
     }
   }

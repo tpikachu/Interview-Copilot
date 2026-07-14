@@ -12,7 +12,7 @@ const MAX_QUESTIONS = 6;
 
 // Mock questions are generated for the chosen interview type, so tag each detected
 // question with a matching QuestionType (used by the live answer prompt + any tags).
-const QUESTION_TYPE_BY_INTERVIEW: Record<InterviewType, QuestionType> = {
+export const QUESTION_TYPE_BY_INTERVIEW: Record<InterviewType, QuestionType> = {
   behavioral: 'behavioral',
   technical: 'technical_concept',
   coding: 'coding',
@@ -37,6 +37,7 @@ function toSession(r: typeof schema.sessions.$inferSelect): Session {
     id: r.id,
     profileId: r.profileId,
     jobId: r.jobId,
+    kind: r.kind as Session['kind'],
     interviewType: r.interviewType as Session['interviewType'],
     status: r.status as Session['status'],
     startedAt: r.startedAt,
@@ -82,7 +83,7 @@ export const mockManager = {
     const id = crypto.randomUUID();
     db()
       .insert(schema.sessions)
-      .values({ id, profileId, jobId, interviewType, status: 'live', startedAt: Date.now() })
+      .values({ id, profileId, jobId, kind: 'mock', interviewType, status: 'live', startedAt: Date.now() })
       .run();
     sessionManager.goLive({
       sessionId: id,

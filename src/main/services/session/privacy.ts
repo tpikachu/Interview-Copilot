@@ -4,6 +4,13 @@ import { broadcast } from '../../ipc/broadcast';
 import { EVENTS } from '@shared/ipc';
 import { appEvents, APP_EVENT } from '../../appEvents';
 
+/** Whether setContentProtection actually works on this platform. On Linux
+ *  (X11/Wayland) it is a silent no-op — the app IS visible in screen shares no
+ *  matter what the toggle says, so the UI must say so instead of promising
+ *  invisibility it can't deliver. Windows (WDA_EXCLUDEFROMCAPTURE) and macOS
+ *  (NSWindowSharingNone) both honor it. */
+export const privacySupported = process.platform !== 'linux';
+
 /** Privacy Mode excludes ALL app windows (dashboard, overlay, region selector,
  *  any future modal/window) from OS screen capture, so nothing appears when the
  *  user shares their screen in Zoom/Meet/Teams or records. Defaults to ON: an
