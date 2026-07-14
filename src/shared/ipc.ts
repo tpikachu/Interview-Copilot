@@ -174,6 +174,7 @@ export const EVENTS = {
   clientInfo: 'session:client-info', // the live session's client (job) notes, for the Cue Card
   answerPrefs: 'session:answer-prefs', // current format/length/pronunciation, for the Cue Card toggles
   audioLevel: 'session:audio-level', // throttled mic level (0-1) for the Cue Card meter
+  transcriberStatus: 'session:transcriber-status', // STT socket lifecycle: reconnecting | connected
   savePrompt: 'session:save-prompt', // a session just stopped → ask the dashboard to save/discard it
   captureBuffer: 'capture:buffer', // current multi-image problem captures, for the Cue Card strip
 } as const;

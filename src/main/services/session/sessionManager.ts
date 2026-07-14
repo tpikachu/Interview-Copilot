@@ -103,6 +103,9 @@ export const sessionManager = {
             broadcast(EVENTS.transcriptDelta, { text, isFinal: false, speaker: 'interviewer' }),
           onFinal: (text) => void this.processFinalTranscript(opts.sessionId, text),
           onError: (message) => broadcast(EVENTS.sessionError, { message }),
+          // Socket lifecycle → a subtle "reconnecting audio…" pill in the Cue Card
+          // (an unexpected drop mid-interview now recovers itself; see realtime.ts).
+          onStatus: (status) => broadcast(EVENTS.transcriberStatus, { status }, ['overlay']),
         },
         opts.language || 'en',
       );

@@ -312,6 +312,8 @@ const api = {
     onClientInfo: (cb: (p: ClientInfo | null) => void) => on(EVENTS.clientInfo, cb),
     onAnswerPrefs: (cb: (p: AnswerPrefs) => void) => on(EVENTS.answerPrefs, cb),
     onAudioLevel: (cb: (p: { level: number }) => void) => on(EVENTS.audioLevel, cb),
+    onTranscriberStatus: (cb: (p: { status: 'reconnecting' | 'connected' }) => void) =>
+      on(EVENTS.transcriberStatus, cb),
     onSavePrompt: (cb: (p: SavePrompt) => void) => on(EVENTS.savePrompt, cb),
     onCaptureBuffer: (cb: (p: { images: string[] }) => void) => on(EVENTS.captureBuffer, cb),
   },

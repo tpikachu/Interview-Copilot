@@ -109,6 +109,7 @@ export default function Overlay() {
 
   // Backend session failure (transcription socket dropped, OpenAI auth, etc.).
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const [reconnecting, setReconnecting] = useState(false); // STT socket auto-recovery in progress
 
   // Manual "Ask" box (Cue Card) + audio level meter + resizable transcript.
   const [askText, setAskText] = useState('');
@@ -226,6 +227,7 @@ export default function Overlay() {
       api.events.onSessionError((p) =>
         setSessionError((p as { message?: string }).message || 'Session error.'),
       ),
+      api.events.onTranscriberStatus((p) => setReconnecting(p.status === 'reconnecting')),
       api.events.onSessionState((p) => {
         const s = p as { paused: boolean; status: string };
         const nowLive = s.status === 'live';
@@ -244,6 +246,7 @@ export default function Overlay() {
           setCards([]);
           setAtBottom(true);
           setSessionError(null);
+          setReconnecting(false);
         }
         // Session stopped: drop the dangling interim partial + streaming cursor so
         // the Cue Card doesn't look like it's still listening.
@@ -252,6 +255,7 @@ export default function Overlay() {
           setCards((cs) => cs.map((c) => ({ ...c, streaming: false })));
           setLevel(0);
           setSpeaking(false);
+          setReconnecting(false);
         }
         prevLive.current = nowLive;
       }),
@@ -532,6 +536,11 @@ export default function Overlay() {
               : ''}
           </span>
           {live && !paused && speaking && <EqualizerBars />}
+          {live && reconnecting && (
+            <span className="shrink-0 rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-px text-[10px] font-medium text-amber-300">
+              reconnecting audio…
+            </span>
+          )}
         </span>
         <div className="flex items-center gap-0.5" style={noDrag}>
           <Btn
