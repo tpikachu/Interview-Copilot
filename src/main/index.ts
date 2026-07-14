@@ -2,6 +2,7 @@ import { app, BrowserWindow, desktopCapturer, session } from 'electron';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import { initDb } from './db';
 import { registerIpc } from './ipc';
+import { sparringManager } from './services/mock/sparringManager';
 import { createMainWindow, showMainWindow } from './windows/mainWindow';
 import { createOverlayWindow, showOverlay } from './windows/overlayWindow';
 import { createSelectionWindow } from './windows/selectionWindow';
@@ -100,6 +101,9 @@ app.whenReady().then(() => {
 
   try {
     initDb();
+    // Quitting from the Sparring page skips React cleanup, so a drill can leave
+    // its session row 'live' — finalize such strays before any UI reads counts.
+    sparringManager.healStrays();
     registerIpc();
     createMainWindow();
     // Create the overlay (Cue Card) up front and show it by default: its renderer

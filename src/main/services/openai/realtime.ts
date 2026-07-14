@@ -12,8 +12,10 @@ export interface RealtimeCallbacks {
   onError?: (message: string) => void;
   onOpen?: () => void;
   /** Connection lifecycle for the UI: 'reconnecting' while automatic recovery is
-   *  in progress, 'connected' when a (re)connection is established. */
-  onStatus?: (status: 'reconnecting' | 'connected') => void;
+   *  in progress, 'connected' when a (re)connection is established, and
+   *  'disconnected' when recovery has given up for good (terminal — otherwise
+   *  the UI would show "reconnecting…" forever over a dead socket). */
+  onStatus?: (status: 'reconnecting' | 'connected' | 'disconnected') => void;
 }
 
 /** Bounded automatic recovery from an unexpected socket drop mid-interview —
@@ -55,6 +57,9 @@ export class RealtimeTranscriber {
   private connect(): void {
     const key = apiKeyStore.getDecrypted();
     if (!key) {
+      // Terminal for the recovery cycle too — a pending "reconnecting…" state
+      // must not outlive a bail-out (the key was removed mid-cycle).
+      this.cb.onStatus?.('disconnected');
       this.cb.onError?.('No OpenAI API key configured.');
       return;
     }
@@ -152,8 +157,11 @@ export class RealtimeTranscriber {
       }
 
       // Out of retries: the interview would otherwise silently go deaf while the
-      // mic keeps streaming into a dead socket. If a specific error was already
-      // surfaced this cycle (e.g. expired key), don't clobber it with a generic one.
+      // mic keeps streaming into a dead socket. Emit the terminal status (so the
+      // UI's "reconnecting…" pill doesn't lie forever) and, if a specific error
+      // was already surfaced this cycle (e.g. expired key), don't clobber it
+      // with a generic one.
+      this.cb.onStatus?.('disconnected');
       if (!this.surfacedError) {
         this.cb.onError?.(
           'Transcription disconnected and could not reconnect — stop and resume the interview.',
@@ -204,7 +212,14 @@ export class RealtimeTranscriber {
         this.cb.onSpeechStop?.();
         break;
       case 'error':
-        this.cb.onError?.(action.message);
+        // In-band server errors go through the same once-per-cycle latch as
+        // socket errors — a quota error that recurs on every reconnect attempt
+        // must surface once, and the latch stops the exhaustion message from
+        // clobbering the specific cause afterwards.
+        if (!this.surfacedError) {
+          this.surfacedError = true;
+          this.cb.onError?.(action.message);
+        }
         break;
     }
   }

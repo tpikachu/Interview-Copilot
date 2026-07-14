@@ -39,12 +39,13 @@ const label = (c: string) => c.replace(/_/g, ' ');
  *  report. Also used to self-heal rows a crash left 'live'. */
 function finalizeSparringSession(sessionId: string): void {
   const questionCount = sessionsRepo.questionCount(sessionId);
-  const rows = db()
-    .select()
-    .from(schema.answerFeedback)
-    .where(eq(schema.answerFeedback.sessionId, sessionId))
-    .all();
-  if (questionCount === 0 && rows.length === 0) {
+  const hasFeedback =
+    db()
+      .select({ id: schema.answerFeedback.id })
+      .from(schema.answerFeedback)
+      .where(eq(schema.answerFeedback.sessionId, sessionId))
+      .all().length > 0;
+  if (questionCount === 0 && !hasFeedback) {
     sessionsRepo.delete(sessionId);
     return;
   }
@@ -53,7 +54,21 @@ function finalizeSparringSession(sessionId: string): void {
     .set({ status: 'stopped', endedAt: Date.now() })
     .where(eq(schema.sessions.id, sessionId))
     .run();
-  if (rows.length === 0) return;
+  buildSparringReport(sessionId);
+}
+
+/** Assemble (and persist) a drill's report from its answer_feedback rows — no
+ *  model call. Returns null when the drill has no coached answers. Exported so
+ *  the report service can build it on demand for a drill that was never
+ *  finalized (e.g. the app quit from the Sparring page) instead of running the
+ *  live-interview LLM generator against answers sparring never wrote. */
+export function buildSparringReport(sessionId: string) {
+  const rows = db()
+    .select()
+    .from(schema.answerFeedback)
+    .where(eq(schema.answerFeedback.sessionId, sessionId))
+    .all();
+  if (rows.length === 0) return null;
 
   const parse = (s: string | null): string[] => {
     try {
@@ -93,7 +108,7 @@ function finalizeSparringSession(sessionId: string): void {
       .all()
       .map((q) => [q.id, q.text] as const),
   );
-  sessionsRepo.saveReport({
+  return sessionsRepo.saveReport({
     sessionId,
     summary,
     strengths: dedupe(rows.flatMap((r) => parse(r.strengths))),
@@ -108,30 +123,35 @@ function finalizeSparringSession(sessionId: string): void {
 /** Generate + speak the interviewer's next question, recording it in history
  *  AND as a detected_questions row (so reports/typeCounts see it). */
 async function ask(): Promise<{ question: string; audioBase64: string }> {
-  if (!spar) throw new Error('No active sparring session.');
-  const profile = profilesRepo.get(spar.profileId);
+  // Capture the state object: `spar` is module-global and the awaits below take
+  // seconds — end()/start() during them must not make us write into a replaced
+  // drill. Every post-await step checks the capture is still current.
+  const s = spar;
+  if (!s) throw new Error('No active sparring session.');
+  const profile = profilesRepo.get(s.profileId);
   if (!profile) throw new Error('Profile not found.');
-  const job = spar.jobId ? jobsRepo.get(spar.jobId) : null;
+  const job = s.jobId ? jobsRepo.get(s.jobId) : null;
 
-  const question = await generateQuestion(profile, spar.history, job, spar.interviewType);
+  const question = await generateQuestion(profile, s.history, job, s.interviewType);
   // Only commit the question to history AFTER TTS succeeds — a transient speak()
   // failure must not permanently consume a turn slot (which would skip questions,
   // end the round early, and pollute follow-up context with an unanswered turn).
-  const audio = await speak(question, spar.voice);
-  spar.history.push({ q: question, a: '' });
+  const audio = await speak(question, s.voice);
+  if (spar !== s) throw new Error('The sparring session ended.');
+  s.history.push({ q: question, a: '' });
   const questionId = crypto.randomUUID();
   db()
     .insert(schema.detectedQuestions)
     .values({
       id: questionId,
-      sessionId: spar.id,
+      sessionId: s.id,
       text: question,
-      type: QUESTION_TYPE_BY_INTERVIEW[spar.interviewType],
+      type: QUESTION_TYPE_BY_INTERVIEW[s.interviewType],
       confidence: 1,
       strategy: 'sparring',
     })
     .run();
-  spar.questionIds.push(questionId);
+  s.questionIds.push(questionId);
   return { question, audioBase64: audio.toString('base64') };
 }
 
@@ -142,6 +162,22 @@ function decodeAudio(base64: string): ArrayBuffer {
 }
 
 export const sparringManager = {
+  /** Finalize any sparring session a crash/quit left 'live' (stamp + report),
+   *  so Reports never shows a phantom in-progress drill and the sidebar's
+   *  live counter can't be haunted across launches. Runs at app boot and
+   *  again before each new drill. */
+  healStrays(): void {
+    const strays = db()
+      .select({ id: schema.sessions.id })
+      .from(schema.sessions)
+      .where(and(eq(schema.sessions.kind, 'sparring'), eq(schema.sessions.status, 'live')))
+      .all();
+    for (const s of strays) {
+      if (spar?.id === s.id) continue; // never finalize the drill that's actually running
+      finalizeSparringSession(s.id);
+    }
+  },
+
   /** Begin a two-way voice mock: ask the first question aloud. */
   async start(
     profileId: string,
@@ -154,14 +190,7 @@ export const sparringManager = {
     if (!apiKeyStore.isPresent())
       throw new Error('Add your OpenAI API key in Settings to start a sparring session.');
 
-    // Self-heal: finalize any sparring session a crash/quit left 'live', so
-    // Reports never shows a phantom in-progress drill.
-    const strays = db()
-      .select({ id: schema.sessions.id })
-      .from(schema.sessions)
-      .where(and(eq(schema.sessions.kind, 'sparring'), eq(schema.sessions.status, 'live')))
-      .all();
-    for (const s of strays) finalizeSparringSession(s.id);
+    this.healStrays();
 
     const id = crypto.randomUUID();
     db()
@@ -196,24 +225,30 @@ export const sparringManager = {
     audioBase64: string,
     mime: string,
   ): Promise<{ transcript: string; feedback: SparringFeedback }> {
-    if (!spar || spar.id !== sessionId) throw new Error('No active sparring session.');
-    const current = spar.history[spar.history.length - 1];
-    const questionId = spar.questionIds[spar.questionIds.length - 1];
+    // Capture the state object at entry: the two awaits below take seconds, and
+    // "End sparring" (or end + a fresh start) can run in between. Writing with
+    // a re-read of the global would land this answer in the WRONG drill.
+    const s = spar;
+    if (!s || s.id !== sessionId) throw new Error('No active sparring session.');
+    const current = s.history[s.history.length - 1];
+    const questionId = s.questionIds[s.questionIds.length - 1];
     if (!current || !questionId) throw new Error('No question to answer yet.');
 
-    const profile = profilesRepo.get(spar.profileId);
+    const profile = profilesRepo.get(s.profileId);
     if (!profile) throw new Error('Profile not found.');
-    const job = spar.jobId ? jobsRepo.get(spar.jobId) : null;
+    const job = s.jobId ? jobsRepo.get(s.jobId) : null;
 
     const transcript = (await transcribeChunk(decodeAudio(audioBase64), mime)).trim();
+    if (spar !== s) throw new Error('The sparring session ended — answer discarded.');
     current.a = transcript;
     const feedback = await evaluateAnswer({
       question: current.q,
       answer: transcript,
       profile,
       job,
-      interviewType: spar.interviewType,
+      interviewType: s.interviewType,
     });
+    if (spar !== s) throw new Error('The sparring session ended — answer discarded.');
     // Persist AFTER both model calls succeed (nothing half-written on failure):
     // the spoken answer into the session transcript, the coaching into
     // answer_feedback — replacing any previous take on a re-answer.
@@ -221,7 +256,7 @@ export const sparringManager = {
       .insert(schema.transcriptChunks)
       .values({
         id: crypto.randomUUID(),
-        sessionId: spar.id,
+        sessionId: s.id,
         speaker: 'candidate',
         text: transcript,
         isFinal: 1,
@@ -235,7 +270,7 @@ export const sparringManager = {
       .insert(schema.answerFeedback)
       .values({
         id: crypto.randomUUID(),
-        sessionId: spar.id,
+        sessionId: s.id,
         questionId,
         answerTranscript: transcript,
         rating: feedback.rating,

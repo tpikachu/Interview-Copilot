@@ -48,6 +48,11 @@ interface LiveState {
 
 let live: LiveState | null = null;
 let lastLevelAt = 0; // throttle the Cue Card audio-level meter broadcasts
+// Follow-up predictions are fire-and-forget; a regenerate can leave an OLD
+// answer's prediction in flight. Each generateAnswer bumps its question's
+// generation, and a prediction only lands if its generation is still current —
+// a stale follow-up must never annotate (or persist onto) a newer answer.
+const followupGeneration = new Map<string, number>();
 
 function toSession(r: typeof schema.sessions.$inferSelect): Session {
   return {
@@ -77,6 +82,7 @@ export const sessionManager = {
   }): void {
     if (live?.answerAbort) live.answerAbort.abort(); // cancel any prior in-flight answer
     if (live?.transcriber) live.transcriber.stop(); // never leak a prior socket
+    followupGeneration.clear(); // a fresh session invalidates all pending predictions
     live = {
       sessionId: opts.sessionId,
       profileId: opts.profileId,
@@ -449,6 +455,10 @@ export const sessionManager = {
     let answer = '';
     let tokens: { prompt: number; completion: number } | null = null;
     let meta: Record<string, unknown> = {};
+    // Invalidate any in-flight follow-up prediction from a previous take of this
+    // question — bumped at STREAM START so even an aborted regenerate supersedes.
+    const followupGen = (followupGeneration.get(questionId) ?? 0) + 1;
+    followupGeneration.set(questionId, followupGen);
     const abort = new AbortController();
     if (live) {
       live.answering = true;
@@ -535,8 +545,10 @@ export const sessionManager = {
       void predictFollowup({ question: questionText, answer, interviewType })
         .then((followup) => {
           if (!followup) return;
-          // Written by questionId so a regenerate's fresh row still gets it;
-          // the overlay routes the annotation to the same card.
+          // Stale guards: a regenerate superseded this prediction, or the
+          // session changed while it was in flight — drop it silently.
+          if (followupGeneration.get(questionId) !== followupGen) return;
+          if (!live || live.sessionId !== sessionId) return;
           db()
             .update(schema.aiAnswers)
             .set({ followupQuestion: followup })

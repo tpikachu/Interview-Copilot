@@ -88,7 +88,7 @@ describe('RealtimeTranscriber reconnect', () => {
     t.stop();
   });
 
-  it('gives up with one final error after the retry budget is exhausted', () => {
+  it('gives up with one final error + a terminal status after the retry budget is exhausted', () => {
     const cb = makeCallbacks();
     const t = new RealtimeTranscriber(cb);
     t.start();
@@ -104,10 +104,37 @@ describe('RealtimeTranscriber reconnect', () => {
     expect(FakeWs.instances).toHaveLength(6); // 1 original + 5 retries
     expect(cb.onError).toHaveBeenCalledTimes(1);
     expect(String(cb.onError.mock.calls[0][0])).toMatch(/could not reconnect/i);
+    // Terminal status — the UI's "reconnecting…" indicator must not lie forever.
+    expect(cb.onStatus).toHaveBeenLastCalledWith('disconnected');
 
     // Budget exhausted: no further sockets get created.
     vi.advanceTimersByTime(60_000);
     expect(FakeWs.instances).toHaveLength(6);
+    t.stop();
+  });
+
+  it('latches in-band server errors: one specific message, no generic clobber at exhaustion', () => {
+    const cb = makeCallbacks();
+    const t = new RealtimeTranscriber(cb);
+    t.start();
+    // Every connection opens, receives an in-band error event, then drops.
+    for (let i = 0; i < 6; i++) {
+      const latest = FakeWs.instances[FakeWs.instances.length - 1];
+      latest.open();
+      latest.emit(
+        'message',
+        JSON.stringify({ type: 'error', error: { message: 'You exceeded your current quota.' } }),
+      );
+      latest.drop();
+      vi.advanceTimersByTime(10_000);
+    }
+    // The specific in-band cause surfaced; the generic exhaustion text did not
+    // clobber it. (Reconnects reset the latch per connection, so one message
+    // per cycle — not one per retry — is the acceptable ceiling; the key
+    // invariant is the LAST surfaced error stays specific.)
+    const messages = cb.onError.mock.calls.map((c) => String(c[0]));
+    expect(messages.some((m) => /quota/i.test(m))).toBe(true);
+    expect(messages.some((m) => /could not reconnect/i.test(m))).toBe(false);
     t.stop();
   });
 
