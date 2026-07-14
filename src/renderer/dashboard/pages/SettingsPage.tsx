@@ -72,6 +72,11 @@ export default function SettingsPage() {
   // Local mirror so the switch updates instantly (optimistic), then reconciles.
   const [privacyOn, setPrivacyOn] = useState(true);
   const [privacyBusy, setPrivacyBusy] = useState(false);
+  // setContentProtection is a silent no-op on Linux — be honest about it.
+  const [privacySupported, setPrivacySupported] = useState(true);
+  useEffect(() => {
+    void api.privacy.get().then((p) => setPrivacySupported(p.supported));
+  }, []);
   const [hideTaskbar, setHideTaskbar] = useState(false);
 
   useEffect(() => {
@@ -196,6 +201,13 @@ export default function SettingsPage() {
           </div>
           <Switch checked={privacyOn} onChange={setPrivacy} onLabel="Hidden" offLabel="Visible" />
         </div>
+        {!privacySupported && (
+          <p className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
+            ⚠ Privacy Mode has <strong>no effect on Linux</strong> — the operating system doesn’t
+            support excluding windows from capture, so BrainCue <strong>will be visible</strong> in
+            screen shares and recordings regardless of this switch.
+          </p>
+        )}
         <p className="mt-3 text-sm text-neutral-400">
           When on, <strong>all app windows</strong> (dashboard, Cue Card, and region selector) are
           excluded from OS screen capture, so they don’t appear when you share your screen in Zoom,

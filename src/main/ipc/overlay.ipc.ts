@@ -8,7 +8,7 @@ import {
   isOverlayVisible,
   setOverlayMode,
 } from '../windows/overlayWindow';
-import { getPrivacy, requestPrivacy, togglePrivacyGuarded } from '../services/session/privacy';
+import { getPrivacy, privacySupported, requestPrivacy, togglePrivacyGuarded } from '../services/session/privacy';
 
 export function registerOverlayIpc(): void {
   handle(IPC.overlay.show, NoInput, () => {
@@ -60,7 +60,7 @@ export function registerOverlayIpc(): void {
     return { copied: true as const };
   });
 
-  handle(IPC.privacy.get, NoInput, () => ({ enabled: getPrivacy() }));
+  handle(IPC.privacy.get, NoInput, () => ({ enabled: getPrivacy(), supported: privacySupported }));
   // Disabling privacy is gated by a confirmation dialog (see requestPrivacy).
   handle(IPC.privacy.toggle, NoInput, async () => ({ enabled: await togglePrivacyGuarded() }));
   handle(IPC.privacy.set, z.object({ enabled: z.boolean() }), async ({ enabled }) => ({

@@ -270,7 +270,7 @@ const api = {
     copyText: (text: string) => invoke<{ copied: true }>(IPC.overlay.copyText, { text }),
   },
   privacy: {
-    get: () => invoke<{ enabled: boolean }>(IPC.privacy.get),
+    get: () => invoke<{ enabled: boolean; supported: boolean }>(IPC.privacy.get),
     toggle: () => invoke<{ enabled: boolean }>(IPC.privacy.toggle),
     set: (enabled: boolean) => invoke<{ enabled: boolean }>(IPC.privacy.set, { enabled }),
   },

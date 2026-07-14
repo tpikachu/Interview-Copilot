@@ -82,6 +82,7 @@ export default function Overlay() {
   const [openCite, setOpenCite] = useState<string | null>(null); // expanded citation: `${cardId}:${n}`
   const [copiedId, setCopiedId] = useState<number | null>(null); // card id showing a brief "copied ✓"
   const [privacy, setPrivacy] = useState(true);
+  const [privacyUnsupported, setPrivacyUnsupported] = useState(false); // Linux: no-op
   const [clientInfo, setClientInfo] = useState<ClientInfo | null>(null);
   const [showClient, setShowClient] = useState(false);
   // Live answer controls (mirrored to the active session via setAnswerPrefs).
@@ -285,7 +286,10 @@ export default function Overlay() {
         setSpeaking((was) => (was ? p.level > SPEAK_OFF : p.level > SPEAK_ON));
       }),
     );
-    void api.privacy.get().then((p) => setPrivacy((p as { enabled: boolean }).enabled));
+    void api.privacy.get().then((p) => {
+      setPrivacy(p.enabled);
+      setPrivacyUnsupported(!p.supported);
+    });
     // Seed the audio-device + coding-solver controls from persisted settings.
     void api.settings.get().then((s) => {
       const ss = s as AppSettings;
@@ -549,12 +553,22 @@ export default function Overlay() {
         </span>
         <div className="flex items-center gap-0.5" style={noDrag}>
           <Btn
-            active={!privacy}
-            tone={privacy ? 'default' : 'warn'}
+            active={!privacy || privacyUnsupported}
+            tone={privacy && !privacyUnsupported ? 'default' : 'warn'}
             onClick={togglePrivacy}
-            title={privacy ? 'Hidden from screen share — click to reveal' : 'VISIBLE to screen share — click to hide'}
+            title={
+              privacyUnsupported
+                ? 'Privacy Mode has NO effect on Linux — this window IS visible to screen shares'
+                : privacy
+                  ? 'Hidden from screen share — click to reveal'
+                  : 'VISIBLE to screen share — click to hide'
+            }
           >
-            {privacy ? <EyeOffIcon className="h-3.5 w-3.5" /> : <EyeIcon className="h-3.5 w-3.5" />}
+            {privacy && !privacyUnsupported ? (
+              <EyeOffIcon className="h-3.5 w-3.5" />
+            ) : (
+              <EyeIcon className="h-3.5 w-3.5" />
+            )}
           </Btn>
           <Btn active={clickthrough} onClick={toggleClickthrough} title="Click-through (mouse passes through)">
             <CursorIcon className="h-3.5 w-3.5" />
