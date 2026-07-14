@@ -12,7 +12,11 @@ import { resolve } from 'node:path';
 // require('electron') resolves to the path of the electron binary.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const electronBin = require('electron') as unknown as string;
-const APP_ENTRY = resolve(process.cwd(), 'out/main/index.js');
+// Spawn the app DIRECTORY (package.json main → out/main/index.js), NOT the entry
+// file: with a bare .js entry, app.getAppPath() resolves to out/main, so the
+// drizzle migrations at the repo root are never found and startup fails with
+// "no such table" before any window opens (fatal on a fresh E2E_USER_DATA).
+const APP_DIR = resolve(process.cwd());
 const CDP_PORT = Number(process.env.E2E_CDP_PORT || 9222);
 
 /** True when a real OpenAI key is available (live tier). Tests needing OpenAI
@@ -69,7 +73,7 @@ export const test = base.extend<Fixtures>({
     delete env.ELECTRON_RUN_AS_NODE;
     if (noApiKey) delete env.OPENAI_API_KEY;
 
-    const proc = spawn(electronBin, [APP_ENTRY], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const proc = spawn(electronBin, [APP_DIR], { env, stdio: ['ignore', 'pipe', 'pipe'] });
     let stderr = '';
     proc.stderr.on('data', (d) => (stderr += d.toString()));
 

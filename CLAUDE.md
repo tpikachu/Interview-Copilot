@@ -17,8 +17,7 @@ npm run db:generate    # generate a Drizzle migration after editing src/main/db/
 npm run package:win    # build + electron-builder installer (also :mac, or bare `package`)
 ```
 
-- `dev`/`start` go through `scripts/run-electron-vite.mjs` (a wrapper) — invoke them via npm, not electron-vite directly.
-- **Build gotcha:** a transient rollup *"error during build"* can occur when `npm run build` runs alongside the dev server. It is not a code issue — re-run and it succeeds.
+- `dev`/`start`/`build` all go through `scripts/run-electron-vite.mjs` (a wrapper that strips `ELECTRON_RUN_AS_NODE` and normalizes a lowercase Windows drive letter in cwd — the cause of the old transient rollup "error during build") — invoke them via npm, not electron-vite directly.
 - After changing `schema.ts`, always `npm run db:generate` and commit the new `drizzle/*.sql` + `drizzle/meta` snapshot.
 
 ## Architecture (the big picture)
