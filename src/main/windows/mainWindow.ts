@@ -2,7 +2,7 @@ import { BrowserWindow, shell } from 'electron';
 import { join } from 'path';
 import { EVENTS } from '@shared/ipc';
 import { attachDiagnostics, loadRenderer } from './loadRenderer';
-import { applyPrivacyToWindow } from '../services/session/privacy';
+import { applyPrivacyToWindow, keepContentProtected } from '../services/session/privacy';
 import { broadcastMaximizeState } from '../ipc/window.ipc';
 import { appIconImage } from './appIcon';
 import { isQuitting } from '../quit';
@@ -40,9 +40,10 @@ export function createMainWindow(): BrowserWindow {
     },
   });
 
-  // Hide from screen capture when Privacy Mode is on (default). Re-apply on show:
-  // on Windows, display affinity is most reliable once the window is realized.
-  applyPrivacyToWindow(win);
+  // Hide from screen capture when Privacy Mode is on (default), and KEEP it
+  // applied across move/resize/restore/focus — dragging or resizing the window
+  // drops the capture exclusion on Windows unless re-asserted.
+  keepContentProtected(win);
 
   // Reveal the window exactly once. On some hybrid-GPU laptops (e.g. NVIDIA
   // Optimus on MSI machines) `ready-to-show` can be delayed or never fire, which
@@ -62,7 +63,6 @@ export function createMainWindow(): BrowserWindow {
   win.webContents.once('did-finish-load', () => reveal('did-finish-load'));
   setTimeout(() => reveal('fallback-timeout'), 5000);
 
-  win.on('show', () => applyPrivacyToWindow(win!));
 
   // Keep the custom titlebar's maximize/restore icon in sync with the real state.
   broadcastMaximizeState(win);

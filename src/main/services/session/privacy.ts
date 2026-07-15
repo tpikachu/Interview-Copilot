@@ -32,6 +32,30 @@ export function applyPrivacyToWindow(win: BrowserWindow): void {
   if (!win.isDestroyed()) win.setContentProtection(getPrivacy());
 }
 
+/**
+ * Apply Privacy Mode to a window AND keep it applied across the operations that
+ * silently drop it on Windows. `setContentProtection` maps to
+ * SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE); on Windows that affinity is
+ * cleared by the window entering the modal move/resize loop — i.e. the user
+ * DRAGGING or resizing the window — after which the "hidden" window reappears in
+ * screen capture until something re-asserts it. We re-assert on every
+ * move/resize (these fire continuously through a drag on Windows) plus
+ * restore/focus/show, so protection survives a drag. `applyPrivacyToWindow`
+ * respects the current on/off state, so this correctly clears protection too
+ * when Privacy Mode is off. Call once per window at creation.
+ */
+export function keepContentProtected(win: BrowserWindow): void {
+  const reassert = (): void => applyPrivacyToWindow(win);
+  reassert();
+  // 'move' + 'resize' fire during/after a drag on Windows; the rest cover
+  // un-minimize, refocus, and (re)show — all points where affinity can reset.
+  win.on('show', reassert);
+  win.on('move', reassert);
+  win.on('resize', reassert);
+  win.on('restore', reassert);
+  win.on('focus', reassert);
+}
+
 export function setPrivacy(enabled: boolean): boolean {
   settingsRepo.set(SETTINGS_KEYS.privacyMode, enabled ? '1' : '0');
   applyContentProtectionToAll(enabled);

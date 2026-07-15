@@ -3,7 +3,7 @@ import { join } from 'path';
 import { EVENTS } from '@shared/ipc';
 import { SETTINGS_KEYS, settingsRepo } from '../db/repositories/settings.repo';
 import { attachDiagnostics, loadRenderer } from './loadRenderer';
-import { applyPrivacyToWindow } from '../services/session/privacy';
+import { keepContentProtected } from '../services/session/privacy';
 import { getMainWindow } from './mainWindow';
 import type { OverlayMode } from '@shared/types';
 
@@ -109,13 +109,11 @@ export function createOverlayWindow(): BrowserWindow {
   overlay.setAlwaysOnTop(true, 'screen-saver');
   overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
-  // Respect Privacy Mode immediately (excluded from screen capture; default on).
-  // Re-apply on show — display affinity is most reliable once realized.
-  applyPrivacyToWindow(overlay);
-  overlay.on('show', () => {
-    if (overlay) applyPrivacyToWindow(overlay);
-    notifyVisibility(true);
-  });
+  // Respect Privacy Mode, and KEEP it applied across move/resize/restore/focus —
+  // the Cue Card is the window users drag most, and a drag drops the capture
+  // exclusion on Windows unless we re-assert it (see keepContentProtected).
+  keepContentProtected(overlay);
+  overlay.on('show', () => notifyVisibility(true));
   overlay.on('hide', () => notifyVisibility(false));
 
   // Persist the Cue Card's size + position (debounced) so they survive restarts.
