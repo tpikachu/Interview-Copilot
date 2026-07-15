@@ -75,24 +75,6 @@ export function keepContentProtected(win: BrowserWindow): void {
   win.on('focus', reassert);
 }
 
-let watchdog: ReturnType<typeof setInterval> | null = null;
-
-/**
- * Backstop for the per-window handlers above. Some capture-exclusion drops don't
- * fire a clean window event — activation from the taskbar / Alt-Tab, a
- * notification stealing focus, a display change, or a DWM/GPU reset — and on
- * flaky Windows setups the affinity is easily lost. While Privacy Mode is ON we
- * therefore RE-ASSERT protection on every window on a short interval, so any drop
- * self-heals within the interval instead of leaving the app visible in a share.
- * Idempotent; unref'd so it never keeps the process alive.
- */
-export function startContentProtectionWatchdog(): void {
-  if (watchdog) return;
-  watchdog = setInterval(() => {
-    if (getPrivacy()) applyContentProtectionToAll(true);
-  }, 500);
-  watchdog.unref?.();
-}
 
 export function setPrivacy(enabled: boolean): boolean {
   settingsRepo.set(SETTINGS_KEYS.privacyMode, enabled ? '1' : '0');
