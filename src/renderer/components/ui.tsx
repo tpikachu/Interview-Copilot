@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, SearchIcon } from './icons';
 
 /** Centered modal dialog. Closes on overlay click or Escape. */
@@ -173,6 +173,113 @@ export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
 
 export function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea {...props} className={`${inputBase} resize-y ${props.className ?? ''}`} />;
+}
+
+/** In-window replacement for a native `<select>`. A native select's option list
+ *  opens as a SEPARATE OS popup window that does NOT inherit the app window's
+ *  screen-capture exclusion — with Privacy Mode on, the dropdown list is still
+ *  visible to screen shares (verified against WGC capture: the popup window
+ *  reads display affinity 0, i.e. unprotected). This popover renders inside the
+ *  window's own DOM, so it is hidden together with the window. Use it for any
+ *  dropdown that can be open while the user is sharing their screen. */
+export function Dropdown({
+  value,
+  options,
+  onChange,
+  buttonClassName = 'flex w-full items-center justify-between gap-2 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-indigo-500',
+  className = '',
+  disabled = false,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  buttonClassName?: string;
+  className?: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [openUp, setOpenUp] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onDocKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // Swallow the Escape so an enclosing Modal (which listens on `window`)
+        // doesn't close along with the dropdown.
+        e.stopPropagation();
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    document.addEventListener('keydown', onDocKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown);
+      document.removeEventListener('keydown', onDocKeyDown);
+    };
+  }, [open]);
+
+  const selected = options.find((o) => o.value === value);
+  return (
+    <div ref={rootRef} className={`relative ${className}`}>
+      <button
+        type="button"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={buttonClassName}
+        onClick={() => {
+          if (!open && rootRef.current) {
+            // Open upward when the list would run past the window bottom and
+            // there is more room above (the Cue Card is small).
+            const r = rootRef.current.getBoundingClientRect();
+            const room = 240;
+            setOpenUp(r.bottom + room > window.innerHeight && r.top > window.innerHeight - r.bottom);
+          }
+          setOpen((v) => !v);
+        }}
+      >
+        <span className="truncate">{selected?.label ?? value}</span>
+        <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 shrink-0 text-neutral-500" aria-hidden>
+          <path
+            fillRule="evenodd"
+            d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.06l3.71-3.83a.75.75 0 1 1 1.08 1.04l-4.25 4.4a.75.75 0 0 1-1.08 0l-4.25-4.4a.75.75 0 0 1 .02-1.06Z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          className={`absolute left-0 z-[60] max-h-56 w-full min-w-max overflow-y-auto rounded-lg border border-neutral-700 bg-neutral-900 py-1 shadow-xl shadow-black/50 ${
+            openUp ? 'bottom-full mb-1' : 'top-full mt-1'
+          }`}
+        >
+          {options.map((o) => (
+            <li key={o.value} role="option" aria-selected={o.value === value}>
+              <button
+                type="button"
+                className={`block w-full px-3 py-1.5 text-left text-sm transition-colors ${
+                  o.value === value
+                    ? 'bg-indigo-600/25 text-indigo-200'
+                    : 'text-neutral-200 hover:bg-neutral-800'
+                }`}
+                onClick={() => {
+                  setOpen(false);
+                  onChange(o.value);
+                }}
+              >
+                {o.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
