@@ -47,11 +47,27 @@ export function applyPrivacyToWindow(win: BrowserWindow): void {
 export function keepContentProtected(win: BrowserWindow): void {
   const reassert = (): void => applyPrivacyToWindow(win);
   reassert();
-  // The main trigger is FOCUS/ACTIVATION — clicking the window drops the capture
-  // exclusion on Windows and it reappears in a screen share until re-asserted
-  // (measured: a focused protected window is fully captured; re-asserting on
-  // focus re-hides it). 'move'/'resize' cover drag/resize; 'restore'/'show'
-  // cover un-minimize and (re)show.
+  // The trigger is FOCUS/ACTIVATION — clicking the window drops the capture
+  // exclusion on Windows and it reappears in a screen share until re-asserted.
+  // The JS 'focus' event fires AFTER Windows has already activated the window,
+  // so a live 30fps share (Meet/Zoom) can catch a frame or two before we
+  // re-hide — a brief flash. To close that gap we ALSO re-assert inside the
+  // native activation messages themselves (Windows-only), which run
+  // synchronously the instant the click lands, before the un-excluded frame is
+  // presented:
+  //   WM_MOUSEACTIVATE (0x0021) — a click on an inactive window (earliest)
+  //   WM_ACTIVATE      (0x0006) — activation state change
+  //   WM_NCACTIVATE    (0x0086) — non-client activation (title/border)
+  //   WM_SETFOCUS      (0x0007) — keyboard focus gained
+  if (process.platform === 'win32') {
+    for (const msg of [0x0021, 0x0006, 0x0086, 0x0007]) {
+      // hookWindowMessage is Windows-only; guarded above.
+      (win as unknown as { hookWindowMessage: (m: number, cb: () => void) => void }).hookWindowMessage(
+        msg,
+        reassert,
+      );
+    }
+  }
   win.on('show', reassert);
   win.on('move', reassert);
   win.on('resize', reassert);

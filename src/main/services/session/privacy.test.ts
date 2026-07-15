@@ -23,6 +23,7 @@ import { keepContentProtected, applyPrivacyToWindow } from './privacy';
  *  fire lifecycle events. */
 function fakeWindow() {
   const handlers = new Map<string, (() => void)[]>();
+  const msgHooks = new Map<number, (() => void)[]>();
   const calls: boolean[] = [];
   return {
     isDestroyed: () => false,
@@ -33,11 +34,20 @@ function fakeWindow() {
       handlers.set(ev, l);
       return this;
     },
+    hookWindowMessage(msg: number, fn: () => void) {
+      const l = msgHooks.get(msg) ?? [];
+      l.push(fn);
+      msgHooks.set(msg, l);
+    },
     fire(ev: string) {
       for (const fn of handlers.get(ev) ?? []) fn();
     },
+    fireMsg(msg: number) {
+      for (const fn of msgHooks.get(msg) ?? []) fn();
+    },
     calls,
     handlers,
+    msgHooks,
   };
 }
 
@@ -79,6 +89,21 @@ describe('keepContentProtected', () => {
     expect(w.handlers.has('move')).toBe(true);
     expect(w.handlers.has('resize')).toBe(true);
   });
+
+  it.runIf(process.platform === 'win32')(
+    're-asserts inside the native activation messages (earliest click signal), before the JS focus event',
+    () => {
+      const w = fakeWindow();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      keepContentProtected(w as any);
+      // WM_MOUSEACTIVATE (0x0021) is hooked — a click on the inactive window.
+      expect(w.msgHooks.has(0x0021)).toBe(true);
+      const before = w.calls.length;
+      w.fireMsg(0x0021); // simulate the native click-activation message
+      expect(w.calls.length).toBe(before + 1);
+      expect(w.calls[w.calls.length - 1]).toBe(true);
+    },
+  );
 
   it('applyPrivacyToWindow reflects the stored setting', () => {
     const w = fakeWindow();
