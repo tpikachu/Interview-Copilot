@@ -132,6 +132,7 @@ export const IPC = {
     setMode: 'overlay:set-mode',
     setOpacity: 'overlay:set-opacity',
     setClickthrough: 'overlay:set-clickthrough',
+
     copyText: 'overlay:copy-text', // write text to the OS clipboard (per-card "Copy")
   },
   privacy: {

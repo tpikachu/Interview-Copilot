@@ -101,6 +101,9 @@ export const sessionManager = {
       transcriber: null,
     };
     showOverlay();
+    // The live session captures loopback audio, which clears our windows'
+    // capture-exclusion at capture start; the always-on protection observer
+    // (startProtectionObserver) detects and heals that within one tick.
 
     // Real interviews stream STT via the Realtime API. A mock rehearsal has no
     // mic — its questions come from the AI interviewer — so skip the transcriber.

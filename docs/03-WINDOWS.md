@@ -43,7 +43,21 @@ overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 - **Font size**: handled purely in renderer (CSS var).
 - **Show/Hide**: global shortcut toggles `overlay.show()/hide()`.
 - **Privacy Mode**: `overlay.setContentProtection(true)` excludes it from screen
-  capture on supported OSes.
+  capture on supported OSes. Protection is applied ONCE per window (creation +
+  `show`); a **protection observer** (`startProtectionObserver` → `AffinityObserver`
+  in `affinityWorker.ts`) runs on a **worker thread** that raises the timer
+  resolution (`timeBeginPeriod(1)`) and, in a tight native `Sleep(1)` loop, reads
+  the real `GetWindowDisplayAffinity` (koffi) of each watched window and restores
+  any the OS wiped with the raw `SetWindowDisplayAffinity` — healing in ~1–2ms.
+  The trigger is an **external screen-share / remote-desktop tool** clearing the
+  exclusion periodically (a remote viewer would otherwise see black rectangles);
+  standard Meet/Zoom respect it. Control state (privacy on/off, watched HWNDs)
+  passes via a `SharedArrayBuffer` since the loop can't service messages. Blind
+  re-asserts (interval shields, event cascades) and `setContentProtection` re-calls
+  as the heal are gone — a raw affinity read is side-effect-free and the raw set
+  is one DWM flag flip, so a healthy state does zero writes and a real wipe never
+  outlives a frame. Verify with `node scripts/privacy-affinity/drive.js`
+  (separate-process affinity probe + driven live session).
 - **Click-through (optional)**: `overlay.setIgnoreMouseEvents(true,{forward:true})`
   for a passive mode.
 

@@ -6,10 +6,12 @@ import { sparringManager } from './services/mock/sparringManager';
 import { createMainWindow, showMainWindow } from './windows/mainWindow';
 import { createOverlayWindow, showOverlay } from './windows/overlayWindow';
 import { createSelectionWindow } from './windows/selectionWindow';
+import { createLoopbackAnchor, getLoopbackAnchor, LOOPBACK_ANCHOR_TITLE } from './windows/loopbackAnchor';
 import { createTray } from './windows/tray';
 import { registerGlobalShortcuts } from './shortcuts';
 import { performShutdown } from './quit';
-import { getPrivacy } from './services/session/privacy';
+import { applyContentProtectionToAll, getPrivacy, startProtectionObserver } from './services/session/privacy';
+import { affinityReadable } from './services/session/displayAffinity';
 import { initAutoUpdate } from './services/update/updater';
 import { log } from './services/security/logger';
 
@@ -36,21 +38,6 @@ if (process.env.E2E_USER_DATA) {
 if (process.env.BRAINCUE_E2E) {
   app.commandLine.appendSwitch('remote-debugging-port', process.env.E2E_CDP_PORT || '9222');
   app.commandLine.appendSwitch('remote-allow-origins', '*');
-}
-
-// Privacy Mode's OS backing (SetWindowDisplayAffinity / WDA_EXCLUDEFROMCAPTURE)
-// is BYPASSED by Chromium's DirectComposition presentation path on some Windows
-// 11 builds/GPU drivers: the window renders via overlay planes that DWM's
-// capture-exclusion filter never sees, so a "hidden" window shows up fully
-// readable in screen shares. Verified with a minimal probe on Win11 26200:
-// protected + DirectComposition = captured; protected + this switch = properly
-// excluded; unprotected + this switch = captured (control). Electron 43 leaks
-// identically, so this is not fixed by upgrading. Disabling DirectComposition
-// routes rendering through the classic path the filter handles; the perf cost
-// for a text UI is negligible. Escape hatch for misbehaving GPUs:
-// BRAINCUE_ALLOW_DIRECT_COMPOSITION=1 (accepting that Privacy Mode may leak).
-if (process.platform === 'win32' && !process.env.BRAINCUE_ALLOW_DIRECT_COMPOSITION) {
-  app.commandLine.appendSwitch('disable-direct-composition');
 }
 
 // A crashing GPU process can leave a blank/hidden window — log it so it's diagnosable.
@@ -102,13 +89,48 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed.has(permission));
 
   // System-audio (loopback) capture for transcribing the interviewer's voice in
-  // online calls. getDisplayMedia({audio:true,video:true}) resolves to the
-  // primary screen's video + system audio loopback; the renderer keeps only audio.
+  // online calls. We need `audio: 'loopback'`, which getDisplayMedia only grants
+  // alongside a VIDEO source — but if that video is the SCREEN, Chromium clears
+  // WDA_EXCLUDEFROMCAPTURE on all of THIS process's windows for the whole capture
+  // (the Cue Card + dashboard then show up in Zoom/Meet). So we point the video
+  // at a tiny off-screen anchor WINDOW instead (createLoopbackAnchor): a window
+  // capture only clears the exclusion once, at capture-start, so re-asserting it
+  // afterwards sticks. The renderer discards the video track and keeps only audio.
   session.defaultSession.setDisplayMediaRequestHandler(
     (_request, callback) => {
+      // Capture-start clears our windows' capture-exclusion; the protection
+      // observer detects the real wipe and heals it within one tick. Only when
+      // the affinity oracle is missing (no observer) fall back to blind timed
+      // re-asserts — better a possible one-frame flicker than staying visible
+      // for the whole interview.
+      const scheduleBlindHeals = (): void => {
+        if (affinityReadable()) return;
+        for (const ms of [250, 600, 1000, 1600, 2400, 3500]) {
+          setTimeout(() => applyContentProtectionToAll(getPrivacy()), ms);
+        }
+      };
+      const anchor = getLoopbackAnchor();
+      if (anchor) {
+        // Hand the media stack the anchor's source id DIRECTLY. Enumerating via
+        // desktopCapturer.getSources can NOT find it: on Windows the enumerator
+        // does not return the calling process's own windows (measured on Win 11
+        // 26200), so the old title/id match silently fell back to whole-screen
+        // capture — the exact mode that continuously wipes our capture
+        // exclusion — on every single session.
+        callback({
+          video: { id: anchor.getMediaSourceId(), name: LOOPBACK_ANCHOR_TITLE },
+          audio: 'loopback',
+        });
+        scheduleBlindHeals();
+        return;
+      }
+      log.warn('loopback anchor window missing; falling back to screen capture (may reveal windows)');
       desktopCapturer
         .getSources({ types: ['screen'] })
-        .then((sources) => callback({ video: sources[0], audio: 'loopback' }))
+        .then((sources) => {
+          callback({ video: sources[0], audio: 'loopback' });
+          scheduleBlindHeals();
+        })
         .catch(() => callback({}));
     },
     { useSystemPicker: false },
@@ -130,6 +152,12 @@ app.whenReady().then(() => {
     // Pre-create the region selector (hidden) so its renderer is loaded and ready;
     // creating it on demand right after a screen capture made it fail to load.
     createSelectionWindow();
+    // The off-screen video source for system-audio (loopback) capture — created up
+    // front so it's enumerable the instant a live session starts. See its handler.
+    createLoopbackAnchor();
+    // Watch every window's REAL OS-level capture-exclusion and re-protect only
+    // on an actual wipe (see privacy.ts) — replaces all blind re-assert timers.
+    startProtectionObserver();
     createTray();
     registerGlobalShortcuts();
     // Build marker: if you DON'T see this line on `npm run dev`, the main process

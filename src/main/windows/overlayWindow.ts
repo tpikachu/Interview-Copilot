@@ -3,7 +3,7 @@ import { join } from 'path';
 import { EVENTS } from '@shared/ipc';
 import { SETTINGS_KEYS, settingsRepo } from '../db/repositories/settings.repo';
 import { attachDiagnostics, loadRenderer } from './loadRenderer';
-import { applyPrivacyToWindow } from '../services/session/privacy';
+import { protectWindow } from '../services/session/privacy';
 import { getMainWindow } from './mainWindow';
 import type { OverlayMode } from '@shared/types';
 
@@ -94,7 +94,13 @@ export function createOverlayWindow(): BrowserWindow {
     backgroundColor: '#0a0a0a',
     resizable: true,
     skipTaskbar: true,
-    // Focusable so the user can click buttons, drag, and use the sliders.
+    // A normal, focusable window: clicking it, dragging it, and typing in the
+    // "Ask a question" box all work exactly as expected. Its screen-capture
+    // stealth does NOT depend on being non-activating — the real leak was the
+    // app's own loopback screen-capture clearing WDA on all our windows, which
+    // is fixed by capturing an off-screen window (loopbackAnchor) + the
+    // protection observer (see startProtectionObserver). Keeping it focusable
+    // is what makes the Ask box typeable.
     focusable: true,
     hasShadow: true,
     alwaysOnTop: true,
@@ -109,13 +115,11 @@ export function createOverlayWindow(): BrowserWindow {
   overlay.setAlwaysOnTop(true, 'screen-saver');
   overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
-  // Respect Privacy Mode immediately (excluded from screen capture; default on).
-  // Re-apply on show — display affinity is most reliable once realized.
-  applyPrivacyToWindow(overlay);
-  overlay.on('show', () => {
-    if (overlay) applyPrivacyToWindow(overlay);
-    notifyVisibility(true);
-  });
+  // Hide from screen capture (Privacy Mode). Set once (and on show); an OS-side
+  // wipe of the exclusion — e.g. the loopback capture starting with a live
+  // session — is detected and healed by the protection observer.
+  protectWindow(overlay);
+  overlay.on('show', () => notifyVisibility(true));
   overlay.on('hide', () => notifyVisibility(false));
 
   // Persist the Cue Card's size + position (debounced) so they survive restarts.

@@ -11,7 +11,7 @@ import type {
 } from '@shared/types';
 import { STORY_CUE_MIN_SCORE } from '@shared/types';
 import { Markdown } from '../components/Markdown';
-import { Modal } from '../components/ui';
+import { Dropdown, Modal } from '../components/ui';
 import {
   type AnswerCard,
   addCard,
@@ -736,20 +736,17 @@ export default function Overlay() {
           className="mb-2 flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1"
           style={noDrag}
         >
-          <label className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-neutral-500">
+          <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-neutral-500">
             Type
-            <select
+            {/* Dropdown (not a native <select>): the native option popup is a
+                separate OS window that screen shares CAN see even in Privacy Mode. */}
+            <Dropdown
               value={interviewType}
-              onChange={(e) => changeInterviewType(e.target.value as InterviewType)}
-              className={ctrlSelect}
-            >
-              {INTERVIEW_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </label>
+              options={INTERVIEW_TYPES}
+              onChange={(v) => changeInterviewType(v as InterviewType)}
+              buttonClassName={`flex items-center gap-1 ${ctrlSelect}`}
+            />
+          </span>
           <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-neutral-500">
             Format
             <span className="flex overflow-hidden rounded-md ring-1 ring-neutral-700">
@@ -1067,33 +1064,32 @@ export default function Overlay() {
           <div className="space-y-5 text-sm">
             <div className="space-y-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Audio</p>
-              <label className="block">
+              <div>
                 <span className="mb-1 block text-xs font-medium text-neutral-400">Listen to</span>
-                <select
+                <Dropdown
                   value={audioSource}
-                  onChange={(e) => saveAudio({ source: e.target.value as 'system' | 'mic' })}
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-indigo-500"
-                >
-                  <option value="system">Interviewer (system audio)</option>
-                  <option value="mic">Microphone (in-person)</option>
-                </select>
-              </label>
+                  options={[
+                    { value: 'system', label: 'Interviewer (system audio)' },
+                    { value: 'mic', label: 'Microphone (in-person)' },
+                  ]}
+                  onChange={(v) => saveAudio({ source: v as 'system' | 'mic' })}
+                />
+              </div>
               {audioSource === 'mic' && (
-                <label className="block">
+                <div>
                   <span className="mb-1 block text-xs font-medium text-neutral-400">Microphone</span>
-                  <select
+                  <Dropdown
                     value={micDeviceId ?? ''}
-                    onChange={(e) => saveAudio({ micDeviceId: e.target.value || null })}
-                    className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-indigo-500"
-                  >
-                    <option value="">System default</option>
-                    {micDevices.map((d, i) => (
-                      <option key={d.deviceId} value={d.deviceId}>
-                        {d.label || `Microphone ${i + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    options={[
+                      { value: '', label: 'System default' },
+                      ...micDevices.map((d, i) => ({
+                        value: d.deviceId,
+                        label: d.label || `Microphone ${i + 1}`,
+                      })),
+                    ]}
+                    onChange={(v) => saveAudio({ micDeviceId: v || null })}
+                  />
+                </div>
               )}
               <p className="text-xs text-neutral-500">
                 Applies to your next interview (the running one keeps its device).
@@ -1107,17 +1103,11 @@ export default function Overlay() {
               <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
                 Coding solver
               </p>
-              <label className="block">
+              <div>
                 <span className="mb-1 block text-xs font-medium text-neutral-400">Language</span>
-                <select
+                <Dropdown
                   value={codingLanguage}
-                  onChange={(e) => {
-                    setCodingLanguage(e.target.value);
-                    void api.settings.set({ codingLanguage: e.target.value });
-                  }}
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-indigo-500"
-                >
-                  {[
+                  options={[
                     'javascript',
                     'typescript',
                     'python',
@@ -1130,43 +1120,39 @@ export default function Overlay() {
                     'swift',
                     'kotlin',
                     'php',
-                  ].map((l) => (
-                    <option key={l} value={l}>
-                      {l}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
+                  ].map((l) => ({ value: l, label: l }))}
+                  onChange={(v) => {
+                    setCodingLanguage(v);
+                    void api.settings.set({ codingLanguage: v });
+                  }}
+                />
+              </div>
+              <div>
                 <span className="mb-1 block text-xs font-medium text-neutral-400">Model</span>
-                <select
+                <Dropdown
                   value={codingModel}
-                  onChange={(e) => void saveCoding({ model: e.target.value })}
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-indigo-500"
-                >
-                  <option value="">Default ({codingDefaults.model})</option>
-                  {['gpt-5-mini', 'gpt-5', 'gpt-4.1', 'o4-mini'].map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
+                  options={[
+                    { value: '', label: `Default (${codingDefaults.model})` },
+                    ...['gpt-5-mini', 'gpt-5', 'gpt-4.1', 'o4-mini'].map((m) => ({ value: m, label: m })),
+                  ]}
+                  onChange={(v) => void saveCoding({ model: v })}
+                />
+              </div>
+              <div>
                 <span className="mb-1 block text-xs font-medium text-neutral-400">
                   Reasoning effort <span className="text-neutral-600">(reasoning models only)</span>
                 </span>
-                <select
+                <Dropdown
                   value={codingEffort}
-                  onChange={(e) => void saveCoding({ effort: e.target.value })}
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-indigo-500"
-                >
-                  <option value="">Default ({codingDefaults.effort})</option>
-                  <option value="low">Low — fastest, cheapest</option>
-                  <option value="medium">Medium — balanced</option>
-                  <option value="high">High — hardest problems</option>
-                </select>
-              </label>
+                  options={[
+                    { value: '', label: `Default (${codingDefaults.effort})` },
+                    { value: 'low', label: 'Low — fastest, cheapest' },
+                    { value: 'medium', label: 'Medium — balanced' },
+                    { value: 'high', label: 'High — hardest problems' },
+                  ]}
+                  onChange={(v) => void saveCoding({ effort: v })}
+                />
+              </div>
               <p className="text-xs text-neutral-500">
                 Used by both “Solve from clipboard” and “Solve a region.” Bump a hard problem up
                 to a stronger model or higher effort — it applies to your next solve.

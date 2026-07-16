@@ -3,7 +3,7 @@ import { join } from 'path';
 import { EVENTS } from '@shared/ipc';
 import { attachDiagnostics, loadRenderer } from './loadRenderer';
 import { captureScreen } from '../services/capture/screenshot';
-import { applyPrivacyToWindow } from '../services/session/privacy';
+import { applyPrivacyToWindow, protectWindow } from '../services/session/privacy';
 import { log } from '../services/security/logger';
 import { broadcast } from '../ipc/broadcast';
 import { getMainWindow } from './mainWindow';
@@ -70,15 +70,10 @@ export function createSelectionWindow(): BrowserWindow {
   });
 
   selectionWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  applyPrivacyToWindow(selectionWin);
-  // Re-apply Privacy Mode every time the selector is shown. The window is created
-  // hidden at startup, and on Windows the exclude-from-capture display affinity is
-  // only reliable once the window is realized — without this the (fullscreen)
-  // selector shows up on the user's screen share. Re-applying on `show` keeps it
-  // hidden from capture, matching the overlay window.
-  selectionWin.on('show', () => {
-    if (selectionWin && !selectionWin.isDestroyed()) applyPrivacyToWindow(selectionWin);
-  });
+  // Exclude the (fullscreen) selector from capture at creation and on show;
+  // OS-side wipes are detected and healed by the protection observer
+  // (matches the other windows).
+  protectWindow(selectionWin);
   attachDiagnostics(selectionWin, 'selector');
 
   // SAFETY NET: cancel from the main process on Escape, even if the renderer's own

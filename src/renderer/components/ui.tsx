@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useEffect, useRef } from 'react';
+import { Children, isValidElement, useEffect, useRef, useState } from 'react';
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, SearchIcon } from './icons';
 
 /** Centered modal dialog. Closes on overlay click or Escape. */
@@ -175,8 +175,252 @@ export function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
   return <textarea {...props} className={`${inputBase} resize-y ${props.className ?? ''}`} />;
 }
 
-export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={`${inputBase} ${props.className ?? ''}`} />;
+/** In-window replacement for a native `<select>`. A native select's option list
+ *  opens as a SEPARATE OS popup window that does NOT inherit the app window's
+ *  screen-capture exclusion — with Privacy Mode on, the dropdown list is still
+ *  visible to screen shares (verified against WGC capture: the popup window
+ *  reads display affinity 0, i.e. unprotected). This popover renders inside the
+ *  window's own DOM, so it is hidden together with the window. Use it for any
+ *  dropdown that can be open while the user is sharing their screen. */
+export function Dropdown({
+  value,
+  options,
+  onChange,
+  buttonClassName = 'flex w-full items-center justify-between gap-2 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-indigo-500',
+  className = '',
+  disabled = false,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  buttonClassName?: string;
+  className?: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [openUp, setOpenUp] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onDocKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // Swallow the Escape so an enclosing Modal (which listens on `window`)
+        // doesn't close along with the dropdown.
+        e.stopPropagation();
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    document.addEventListener('keydown', onDocKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown);
+      document.removeEventListener('keydown', onDocKeyDown);
+    };
+  }, [open]);
+
+  const selected = options.find((o) => o.value === value);
+  return (
+    <div ref={rootRef} className={`relative ${className}`}>
+      <button
+        type="button"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={buttonClassName}
+        onClick={(e) => {
+          // When this Dropdown stands in for a <select> inside a <label> (e.g.
+          // dashboard Field), the label would re-dispatch a synthetic click onto
+          // this button and toggle it a second time (open→closed). Cancel both so
+          // one physical click = one toggle.
+          e.preventDefault();
+          e.stopPropagation();
+          if (!open && rootRef.current) {
+            // Open upward when the list would run past the window bottom and
+            // there is more room above (the Cue Card is small).
+            const r = rootRef.current.getBoundingClientRect();
+            const room = 240;
+            setOpenUp(r.bottom + room > window.innerHeight && r.top > window.innerHeight - r.bottom);
+          }
+          setOpen((v) => !v);
+        }}
+      >
+        <span className="truncate">{selected?.label ?? value}</span>
+        <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 shrink-0 text-neutral-500" aria-hidden>
+          <path
+            fillRule="evenodd"
+            d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.06l3.71-3.83a.75.75 0 1 1 1.08 1.04l-4.25 4.4a.75.75 0 0 1-1.08 0l-4.25-4.4a.75.75 0 0 1 .02-1.06Z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          className={`absolute left-0 z-[60] max-h-56 w-full min-w-max overflow-y-auto rounded-lg border border-neutral-700 bg-neutral-900 py-1 shadow-xl shadow-black/50 ${
+            openUp ? 'bottom-full mb-1' : 'top-full mt-1'
+          }`}
+        >
+          {options.map((o) => (
+            <li key={o.value} role="option" aria-selected={o.value === value}>
+              <button
+                type="button"
+                className={`block w-full px-3 py-1.5 text-left text-sm transition-colors ${
+                  o.value === value
+                    ? 'bg-indigo-600/25 text-indigo-200'
+                    : 'text-neutral-200 hover:bg-neutral-800'
+                }`}
+                onClick={() => {
+                  setOpen(false);
+                  onChange(o.value);
+                }}
+              >
+                {o.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Converts native HTML `title` tooltips into an in-window tooltip, app-wide.
+ *
+ * A native `title` tooltip renders as a SEPARATE OS window that does NOT inherit
+ * the app window's screen-capture exclusion — so hovering any titled element
+ * (nav links, buttons, icons) shows the tooltip in a Zoom/Meet screen share even
+ * while the app itself is hidden. This intercepts the `title` on hover (well
+ * before the OS tooltip's ~0.5s delay), strips it so the native tooltip never
+ * appears, and renders the same text inside the window's own DOM instead (which
+ * IS covered by the exclusion). Mount ONCE at the app root — it covers every
+ * view and every current/future `title`, so individual call sites keep using the
+ * ordinary `title` attribute.
+ */
+export function TooltipShield() {
+  const [tip, setTip] = useState<{ text: string; x: number; y: number; up: boolean } | null>(null);
+  useEffect(() => {
+    let curEl: HTMLElement | null = null;
+    const titled = (n: EventTarget | null): HTMLElement | null => {
+      let el = n as HTMLElement | null;
+      while (el && el !== document.body) {
+        if (el.getAttribute && (el.getAttribute('title') || el.getAttribute('data-tip'))) return el;
+        el = el.parentElement;
+      }
+      return null;
+    };
+    const show = (el: HTMLElement): void => {
+      let text = el.getAttribute('title');
+      if (text) {
+        // Strip the native title so the OS tooltip window never appears; keep the
+        // text for our in-window tooltip and (if the control has no visible text)
+        // for accessibility.
+        el.setAttribute('data-tip', text);
+        if (!el.getAttribute('aria-label') && !el.textContent?.trim()) el.setAttribute('aria-label', text);
+        el.removeAttribute('title');
+      } else {
+        text = el.getAttribute('data-tip');
+      }
+      if (!text) return setTip(null);
+      const r = el.getBoundingClientRect();
+      const up = r.bottom + 44 > window.innerHeight;
+      setTip({
+        text,
+        x: Math.min(Math.max(r.left + r.width / 2, 8), window.innerWidth - 8),
+        y: up ? r.top - 6 : r.bottom + 6,
+        up,
+      });
+    };
+    const onOver = (e: Event): void => {
+      const el = titled(e.target);
+      if (el === curEl) return;
+      curEl = el;
+      if (el) show(el);
+      else setTip(null);
+    };
+    const hide = (): void => {
+      curEl = null;
+      setTip(null);
+    };
+    document.addEventListener('mouseover', onOver, true);
+    document.addEventListener('mousedown', hide, true);
+    window.addEventListener('scroll', hide, true);
+    window.addEventListener('blur', hide);
+    return () => {
+      document.removeEventListener('mouseover', onOver, true);
+      document.removeEventListener('mousedown', hide, true);
+      window.removeEventListener('scroll', hide, true);
+      window.removeEventListener('blur', hide);
+    };
+  }, []);
+  if (!tip) return null;
+  return (
+    <div
+      role="tooltip"
+      style={{
+        position: 'fixed',
+        left: tip.x,
+        top: tip.y,
+        transform: `translate(-50%, ${tip.up ? '-100%' : '0'})`,
+        zIndex: 9999,
+        pointerEvents: 'none',
+      }}
+      className="max-w-xs rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1 text-[11px] leading-snug text-neutral-100 shadow-lg shadow-black/60"
+    >
+      {tip.text}
+    </div>
+  );
+}
+
+/** Flatten an <option>'s children (strings, numbers, fragments) to plain text. */
+function nodeText(node: React.ReactNode): string {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(nodeText).join('');
+  if (isValidElement(node)) return nodeText((node.props as { children?: React.ReactNode }).children);
+  return '';
+}
+
+/**
+ * A drop-in for a native `<select>` that renders the in-window {@link Dropdown}
+ * instead — a native select's option list opens as a SEPARATE OS popup window
+ * that is NOT covered by the app's screen-capture exclusion, so it shows in
+ * Zoom/Meet even with Privacy Mode on. Keeps the native-select call shape
+ * (`value` + `<option>` children + an event-style `onChange`) so existing call
+ * sites need no changes.
+ */
+export function Select({
+  value,
+  onChange,
+  disabled,
+  className,
+  children,
+}: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  const options: { value: string; label: string }[] = [];
+  Children.forEach(children, (child) => {
+    if (!isValidElement(child) || child.type !== 'option') return;
+    const p = child.props as { value?: string | number; children?: React.ReactNode };
+    options.push({ value: String(p.value ?? ''), label: nodeText(p.children) });
+  });
+  return (
+    <Dropdown
+      value={String(value ?? '')}
+      options={options}
+      disabled={disabled}
+      className={className ?? ''}
+      buttonClassName={`${inputBase} flex items-center justify-between gap-2 text-left`}
+      onChange={(v) =>
+        onChange?.({
+          target: { value: v },
+          currentTarget: { value: v },
+        } as unknown as React.ChangeEvent<HTMLSelectElement>)
+      }
+    />
+  );
 }
 
 /** Text input with a leading search icon — for filter/search boxes. */
