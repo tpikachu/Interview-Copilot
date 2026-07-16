@@ -34,19 +34,21 @@ export function applyPrivacyToWindow(win: BrowserWindow): void {
   if (!win.isDestroyed()) win.setContentProtection(getPrivacy());
 }
 
+/** The single off-thread detect-and-heal observer (see affinityWorker.ts). */
+const observer = new AffinityObserver();
+
 /**
  * Apply Privacy Mode to a window once at creation and again whenever it
  * (re)shows — hide()/show() can wipe the affinity on this Electron, and a
  * hidden window is in no capture, so that write can never flash.
  *
- * That is the ONLY proactive protection. Earlier revisions also re-asserted
- * blindly on click/focus/move/z-order events and on interval shields; every
- * such re-CALL of setContentProtection composites a fresh frame that an active
- * WGC capture (Zoom/Meet) can show as a one-frame flicker — the "flash" users
- * saw. Detecting real breakage is the protection observer's job
- * (startProtectionObserver below): it READS the OS-level affinity, which is
- * side-effect-free, and re-calls setContentProtection only on a window the OS
- * has actually made capturable again.
+ * Set-once + observe-and-heal is the ONLY protection. Earlier revisions also
+ * re-asserted blindly on click/focus/move/z-order events and on interval
+ * shields; every such re-CALL of setContentProtection composites a fresh frame
+ * that an active WGC capture (Zoom/Meet) can show as a one-frame flicker — the
+ * "flash" users saw. The observer (startProtectionObserver below) instead READS
+ * the OS-level affinity (side-effect-free) and restores it with the raw
+ * `SetWindowDisplayAffinity` only on a window the OS has actually wiped.
  */
 export function protectWindow(win: BrowserWindow): void {
   applyPrivacyToWindow(win); // protect once, now, at creation
@@ -58,9 +60,6 @@ export function protectWindow(win: BrowserWindow): void {
   observer.watch(hwnd);
   win.on('closed', () => observer.unwatch(hwnd));
 }
-
-/** The single off-thread detect-and-heal observer (see affinityWorker.ts). */
-const observer = new AffinityObserver();
 
 /** How often (and how many times) the observer caught the OS with a window's
  *  capture-exclusion wiped. Diagnostics for tests and support. */
