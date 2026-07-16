@@ -1,16 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // Drive getPrivacy() via a stubbed settings repo (avoids better-sqlite3), stub
-// the native affinity oracle, and capture broadcasts/app-events so the module
-// loads without electron windows.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const state = vi.hoisted(() => ({
-  privacy: '1' as string | null,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  windows: [] as any[],
-  readable: true,
-  // Per-window REAL OS affinity, as the stubbed oracle reports it.
-  affinity: new Map<unknown, number | null>(),
+// the native affinity helpers, and replace the off-thread AffinityObserver with a
+// recorder so we can assert privacy.ts wires it correctly (the worker's own
+// detect-and-heal loop is covered by affinityWorker.test.ts + drive.js).
+const state = vi.hoisted(() => ({ privacy: '1' as string | null, windows: [] as unknown[] }));
+const obs = vi.hoisted(() => ({
+  start: [] as boolean[],
+  stop: 0,
+  watch: [] as string[],
+  unwatch: [] as string[],
+  privacy: [] as boolean[],
+  stats: { breaches: 0, lastBreachAt: 0 },
 }));
 vi.mock('../../db/repositories/settings.repo', () => ({
   SETTINGS_KEYS: { privacyMode: 'privacy_mode' },
@@ -25,14 +26,34 @@ vi.mock('electron', () => ({ BrowserWindow: { getAllWindows: () => state.windows
 vi.mock('../../ipc/broadcast', () => ({ broadcast: vi.fn() }));
 vi.mock('@shared/ipc', () => ({ EVENTS: { privacyChanged: 'privacy:changed' } }));
 vi.mock('../../appEvents', () => ({ appEvents: { emit: vi.fn() }, APP_EVENT: { privacyChanged: 'x' } }));
-vi.mock('../security/logger', () => ({
-  log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
+vi.mock('../security/logger', () => ({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock('./displayAffinity', () => ({
   WDA_NONE: 0x0,
   WDA_EXCLUDEFROMCAPTURE: 0x11,
-  affinityReadable: () => state.readable,
-  readWindowAffinity: (w: unknown) => state.affinity.get(w) ?? 0x11,
+  // privacy.ts only needs hwndOf; each fake window carries its own id.
+  hwndOf: (w: { __hwnd?: string }) => BigInt(w?.__hwnd ?? '0'),
+}));
+vi.mock('./affinityWorker', () => ({
+  AffinityObserver: class {
+    start(on: boolean) {
+      obs.start.push(on);
+    }
+    stop() {
+      obs.stop++;
+    }
+    watch(h: bigint) {
+      obs.watch.push(h.toString());
+    }
+    unwatch(h: bigint) {
+      obs.unwatch.push(h.toString());
+    }
+    setPrivacy(on: boolean) {
+      obs.privacy.push(on);
+    }
+    getStats() {
+      return obs.stats;
+    }
+  },
 }));
 
 import {
@@ -41,17 +62,19 @@ import {
   startProtectionObserver,
   stopProtectionObserver,
   getProtectionObserverStats,
+  setPrivacy,
 } from './privacy';
 
 /** A fake BrowserWindow that records setContentProtection calls and lets tests
- *  fire lifecycle events. */
-function fakeWindow(title = 'win') {
+ *  fire lifecycle events; `__hwnd` is the id the mocked hwndOf() returns. */
+function fakeWindow(hwnd = '111') {
   const handlers = new Map<string, (() => void)[]>();
   const calls: boolean[] = [];
   return {
+    __hwnd: hwnd,
     isDestroyed: () => false,
     isVisible: () => true,
-    getTitle: () => title,
+    getTitle: () => 'win',
     setContentProtection: (v: boolean) => calls.push(v),
     on(ev: string, fn: () => void) {
       const l = handlers.get(ev) ?? [];
@@ -70,14 +93,15 @@ function fakeWindow(title = 'win') {
 beforeEach(() => {
   state.privacy = '1';
   state.windows = [];
-  state.readable = true;
-  state.affinity = new Map();
-  process.env.BRAINCUE_OBSERVER_MS = '50'; // pin the tick so tests don't depend on the default
+  obs.start = [];
+  obs.stop = 0;
+  obs.watch = [];
+  obs.unwatch = [];
+  obs.privacy = [];
+  obs.stats = { breaches: 3, lastBreachAt: 42 };
   vi.useFakeTimers();
 });
 afterEach(() => {
-  stopProtectionObserver();
-  delete process.env.BRAINCUE_OBSERVER_MS;
   vi.clearAllTimers();
   vi.useRealTimers();
 });
@@ -88,11 +112,11 @@ describe('protectWindow', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     protectWindow(w as any);
     expect(w.calls).toEqual([true]);
-    // NOTHING may be scheduled or event-driven beyond 'show': blind re-asserts
-    // were themselves the one-frame flicker in active WGC captures.
+    // NOTHING may be scheduled or event-driven beyond 'show'/'closed': blind
+    // re-asserts were themselves the one-frame flicker in active WGC captures.
     vi.advanceTimersByTime(5000);
     expect(w.calls).toEqual([true]);
-    expect([...w.handlers.keys()]).toEqual(['show']);
+    expect([...w.handlers.keys()]).toEqual(['show', 'closed']);
   });
 
   it('re-applies on show (hide/show wipes the affinity; a hidden window is in no capture, so this cannot flash)', () => {
@@ -112,6 +136,16 @@ describe('protectWindow', () => {
     expect(w.calls[w.calls.length - 1]).toBe(false);
   });
 
+  it('registers the window with the observer on creation and unregisters it on close', () => {
+    const w = fakeWindow('909');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    protectWindow(w as any);
+    expect(obs.watch).toEqual(['909']);
+    expect(obs.unwatch).toEqual([]);
+    w.fire('closed');
+    expect(obs.unwatch).toEqual(['909']);
+  });
+
   it('applyPrivacyToWindow reflects the stored setting', () => {
     const w = fakeWindow();
     state.privacy = '0';
@@ -121,61 +155,30 @@ describe('protectWindow', () => {
   });
 });
 
-describe.runIf(process.platform === 'win32')('protection observer', () => {
-  it('makes ZERO setContentProtection calls while every window is genuinely excluded (the no-flicker property)', () => {
-    const a = fakeWindow('a');
-    const b = fakeWindow('b');
-    state.windows = [a, b];
+describe('protection observer wiring', () => {
+  it('starts the observer with the current Privacy Mode state', () => {
     startProtectionObserver();
-    vi.advanceTimersByTime(50 * 20); // 1s of ticks, all healthy (default 0x11)
-    expect(a.calls.length).toBe(0);
-    expect(b.calls.length).toBe(0);
+    expect(obs.start).toEqual([true]);
   });
 
-  it('re-protects ONLY a window whose OS affinity was actually wiped, and counts the breach', () => {
-    const wiped = fakeWindow('wiped');
-    const healthy = fakeWindow('healthy');
-    state.windows = [wiped, healthy];
-    const before = getProtectionObserverStats().breaches;
-    startProtectionObserver();
-    state.affinity.set(wiped, 0x0); // the OS made it capturable behind our back
-    vi.advanceTimersByTime(50);
-    expect(wiped.calls).toEqual([true]);
-    expect(healthy.calls.length).toBe(0);
-    expect(getProtectionObserverStats().breaches).toBe(before + 1);
-    // once the oracle reads excluded again, no further calls
-    state.affinity.set(wiped, 0x11);
-    vi.advanceTimersByTime(50 * 10);
-    expect(wiped.calls).toEqual([true]);
-  });
-
-  it('never fights the user: with Privacy Mode OFF a capturable window is left alone', () => {
-    const w = fakeWindow();
-    state.windows = [w];
+  it('starts disabled when Privacy Mode is off (never fights the user)', () => {
     state.privacy = '0';
-    state.affinity.set(w, 0x0);
     startProtectionObserver();
-    vi.advanceTimersByTime(50 * 5);
-    expect(w.calls.length).toBe(0);
+    expect(obs.start).toEqual([false]);
   });
 
-  it('stops on stopProtectionObserver', () => {
-    const w = fakeWindow();
-    state.windows = [w];
-    startProtectionObserver();
+  it('stops the observer on stopProtectionObserver', () => {
     stopProtectionObserver();
-    state.affinity.set(w, 0x0);
-    vi.advanceTimersByTime(50 * 10);
-    expect(w.calls.length).toBe(0);
+    expect(obs.stop).toBe(1);
   });
 
-  it('does not start without the affinity oracle (falls back to set-once; blind healing is elsewhere)', () => {
-    const w = fakeWindow();
-    state.windows = [w];
-    state.readable = false;
-    state.affinity.set(w, 0x0);
-    startProtectionObserver();
-    vi.advanceTimersByTime(50 * 10);
-    expect(w.calls.length).toBe(0);
+  it('mirrors a Privacy Mode toggle to the observer', () => {
+    setPrivacy(false);
+    setPrivacy(true);
+    expect(obs.privacy).toEqual([false, true]);
+  });
+
+  it('exposes the observer breach stats', () => {
+    expect(getProtectionObserverStats()).toEqual({ breaches: 3, lastBreachAt: 42 });
   });
 });

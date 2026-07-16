@@ -3,8 +3,8 @@ import { SETTINGS_KEYS, settingsRepo } from '../../db/repositories/settings.repo
 import { broadcast } from '../../ipc/broadcast';
 import { EVENTS } from '@shared/ipc';
 import { appEvents, APP_EVENT } from '../../appEvents';
-import { affinityReadable, readWindowAffinity, WDA_EXCLUDEFROMCAPTURE } from './displayAffinity';
-import { log } from '../security/logger';
+import { hwndOf } from './displayAffinity';
+import { AffinityObserver } from './affinityWorker';
 
 /** Whether setContentProtection actually works on this platform. On Linux
  *  (X11/Wayland) it is a silent no-op — the app IS visible in screen shares no
@@ -51,74 +51,48 @@ export function applyPrivacyToWindow(win: BrowserWindow): void {
 export function protectWindow(win: BrowserWindow): void {
   applyPrivacyToWindow(win); // protect once, now, at creation
   win.on('show', () => applyPrivacyToWindow(win));
+  // Register with the off-thread observer so a wipe by an external capturer (or
+  // our own loopback capture) is detected and healed within a tick. Capture the
+  // HWND now — it reads 0 once the window is destroyed.
+  const hwnd = hwndOf(win);
+  observer.watch(hwnd);
+  win.on('closed', () => observer.unwatch(hwnd));
 }
 
-let observerTimer: ReturnType<typeof setInterval> | null = null;
-const observerStats = { breaches: 0, lastBreachAt: 0 };
+/** The single off-thread detect-and-heal observer (see affinityWorker.ts). */
+const observer = new AffinityObserver();
 
 /** How often (and how many times) the observer caught the OS with a window's
  *  capture-exclusion wiped. Diagnostics for tests and support. */
 export function getProtectionObserverStats(): { breaches: number; lastBreachAt: number } {
-  return { ...observerStats };
-}
-
-function observeTick(): void {
-  if (!getPrivacy()) return; // Privacy Mode off — windows are MEANT to be capturable
-  for (const w of BrowserWindow.getAllWindows()) {
-    if (w.isDestroyed()) continue;
-    const affinity = readWindowAffinity(w);
-    if (affinity === null || affinity === WDA_EXCLUDEFROMCAPTURE) continue;
-    // Breach: the OS wiped the exclusion, so this window is visible to screen
-    // capture RIGHT NOW — the one situation where re-calling
-    // setContentProtection cannot make anything worse.
-    observerStats.breaches++;
-    observerStats.lastBreachAt = Date.now();
-    w.setContentProtection(true);
-    const after = readWindowAffinity(w);
-    log.warn(
-      `[privacy] capture protection was wiped on "${w.getTitle()}" ` +
-        `(affinity 0x${affinity.toString(16)}) — re-protected ` +
-        `(now 0x${(after ?? 0xffff).toString(16)}; breach #${observerStats.breaches})`,
-    );
-  }
+  return observer.getStats();
 }
 
 /**
- * The protection observer ("observe bot"): every ~50ms, read the REAL
- * `GetWindowDisplayAffinity` of every window and re-protect only a window the
- * OS has actually wiped (known trigger: our own loopback capture starting with
- * a live session; see loopbackAnchor.ts). Reading is a plain user32 query with
- * zero visual side effects, so a healthy steady state produces ZERO
- * setContentProtection calls — no interval flicker — while a real wipe (the
- * window becoming visible in the share) is healed within one tick and logged.
- * Runs for the app's whole life; each tick is a handful of native reads.
+ * The protection observer ("observe bot"): a worker thread reads the REAL
+ * `GetWindowDisplayAffinity` of every protected window every ~12ms and restores
+ * (raw `SetWindowDisplayAffinity`) any window the OS has wiped — the known
+ * triggers being an external screen share / remote-desktop tool clearing the
+ * exclusion behind our back, and our own loopback capture starting with a live
+ * session. Reading is side-effect-free, so a healthy steady state makes ZERO
+ * writes (no interval flicker); a real wipe is healed within one tick. It runs
+ * OFF the UI thread so a busy main process (streaming an answer mid-interview)
+ * can never delay healing. Call once at startup after the windows exist.
  */
 export function startProtectionObserver(): void {
-  stopProtectionObserver();
-  if (process.platform !== 'win32') return; // the wipe + the oracle are Windows-only
-  if (!affinityReadable()) {
-    log.warn(
-      '[privacy] protection observer unavailable (no affinity oracle) — ' +
-        'a wiped capture-exclusion cannot be detected or healed on this machine',
-    );
-    return;
-  }
-  const intervalMs = Number(process.env.BRAINCUE_OBSERVER_MS) || 50;
-  observerTimer = setInterval(observeTick, intervalMs);
-  observerTimer.unref?.();
-  log.info(`[privacy] protection observer active (affinity check every ${intervalMs}ms)`);
+  observer.start(getPrivacy());
 }
 
 export function stopProtectionObserver(): void {
-  if (observerTimer) {
-    clearInterval(observerTimer);
-    observerTimer = null;
-  }
+  observer.stop();
 }
 
 export function setPrivacy(enabled: boolean): boolean {
   settingsRepo.set(SETTINGS_KEYS.privacyMode, enabled ? '1' : '0');
   applyContentProtectionToAll(enabled);
+  // Mirror the toggle to the observer so it stops healing when the user has
+  // deliberately made the windows capturable (and resumes when re-enabled).
+  observer.setPrivacy(enabled);
   // Notify all renderer windows so their indicators stay in sync regardless of
   // who triggered the change (global shortcut, overlay button, or Settings).
   broadcast(EVENTS.privacyChanged, { enabled });
