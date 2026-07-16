@@ -6,6 +6,7 @@ import {
   createOverlayWindow,
   getOverlayWindow,
   isOverlayVisible,
+  setOverlayKeyboardFocus,
   setOverlayMode,
 } from '../windows/overlayWindow';
 import { getPrivacy, privacySupported, requestPrivacy, togglePrivacyGuarded } from '../services/session/privacy';
@@ -50,6 +51,16 @@ export function registerOverlayIpc(): void {
     ({ enabled }) => {
       getOverlayWindow()?.setIgnoreMouseEvents(enabled, { forward: true });
       return { enabled };
+    },
+  );
+
+  // Tap-to-focus for the non-activating Cue Card so its text inputs can be typed.
+  handle(
+    IPC.overlay.setKeyboardFocus,
+    z.object({ enable: z.boolean() }),
+    ({ enable }) => {
+      setOverlayKeyboardFocus(enable);
+      return { enable };
     },
   );
 
