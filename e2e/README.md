@@ -72,8 +72,12 @@ Two steps — burst frames from the running app, then assemble them:
 
 ```bash
 E2E_CAPTURE=1 npx playwright test e2e/media.capture.spec.ts
-node scripts/build-media.mjs cue-card-stream --fps 12 --width 760
+node scripts/build-media.mjs cuecard-stream --fps 8 --width 760 --hold 4
 ```
+
+The clip name matches the committed asset, so a re-capture refreshes
+`docs/media/cuecard-stream.gif` in place — the README and landing page pick it
+up with no reference changes.
 
 The spec writes numbered PNGs to `docs/media/frames/<clip>/` (scratch —
 gitignored); the script turns them into `docs/media/<clip>.gif` and
@@ -83,6 +87,23 @@ gitignored); the script turns them into `docs/media/<clip>.gif` and
 `brew install ffmpeg` · `apt install ffmpeg`). It builds the GIF with a two-pass
 global palette, which keeps flat UI colour and thin text sharp where ffmpeg's
 default quantisation smears them.
+
+`--hold N` collapses any run of byte-identical frames to at most N. The app
+idles before the answer arrives and holds still after it finishes, so a raw
+capture is bookended by long stretches of the same image — leave those in and
+the clip reads as a static screenshot rather than a demo.
+
+### Getting a clip that shows the streaming
+
+Two things decide whether the clip has any motion in it, and both have bitten:
+
+- **Don't `await api.mock.start()` before capturing.** It only resolves once the
+  question has been asked *and* answered, so awaiting it means you start filming
+  after the interesting part is over. Kick it off and sample concurrently.
+- **Don't stop on "text stopped changing" alone.** There's a quiet gap between
+  the question landing and the first answer token; treat that as the end and you
+  get a couple of seconds of nothing. `captureStream` requires `minGrowth`
+  characters to have arrived before a settle counts as finished.
 
 ### Why frames, not Playwright video
 

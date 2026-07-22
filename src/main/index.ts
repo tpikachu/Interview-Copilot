@@ -1,4 +1,6 @@
 import { app, BrowserWindow, desktopCapturer, session } from 'electron';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import { initDb } from './db';
 import { registerIpc } from './ipc';
@@ -21,6 +23,24 @@ import { log } from './services/security/logger';
 if (process.env.AI_DISABLE_GPU === '1' || process.argv.includes('--disable-gpu')) {
   app.disableHardwareAcceleration();
   log.info('GPU hardware acceleration disabled (AI_DISABLE_GPU / --disable-gpu)');
+}
+
+// Identity pin. package.json `name` is "braincue", but Electron derives the
+// userData directory from the app name — and every install that predates the
+// rename keeps its database, documents, vectors, and encrypted API key under
+// the ORIGINAL id. Renaming without this would silently point the app at a new,
+// empty folder and read as total data loss. So: if the legacy directory exists,
+// keep using it; only fresh installs get the new name. Must run before the app
+// is ready (the DB path derives from userData).
+//
+// Note for macOS/Linux: safeStorage keys its encryption to the app name via the
+// Keychain/keyring, so on those platforms a renamed build cannot decrypt a key
+// saved by an older one — the DB survives, but the user re-enters their API key
+// once. On Windows (DPAPI) encryption is user-scoped and is unaffected.
+const LEGACY_USER_DATA_DIR = 'ai-interview-assistant';
+if (!process.env.E2E_USER_DATA) {
+  const legacy = join(app.getPath('appData'), LEGACY_USER_DATA_DIR);
+  if (existsSync(legacy)) app.setPath('userData', legacy);
 }
 
 // E2E: isolate the on-disk data dir so Playwright tests never touch the real user
