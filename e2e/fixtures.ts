@@ -129,6 +129,57 @@ export const test = base.extend<Fixtures>({
   },
 });
 
+/**
+ * Turn Privacy Mode OFF for a capture run, and prove it went off.
+ *
+ * Privacy Mode marks every window WDA_EXCLUDEFROMCAPTURE, which blanks them for
+ * any external screen recorder. Disabling it is deliberately gated behind an
+ * in-window confirm (a native dialog would itself be a separate, unprotected
+ * window visible in a screen share) — so an automated `privacy.set(false)`
+ * resolves with the setting UNCHANGED unless something answers the prompt.
+ * Answer it the way a user does rather than reaching around the guard.
+ *
+ * CDP screenshots aren't affected by content protection, so skipping this fails
+ * silently and only bites when the footage is filmed with a real recorder.
+ */
+export async function disablePrivacyMode(dashboard: Page): Promise<void> {
+  type Privacy = { enabled: boolean; supported: boolean };
+  const read = (): Promise<Privacy> =>
+    dashboard.evaluate(
+      async () =>
+        (window as unknown as { api: { privacy: { get: () => Promise<Privacy> } } }).api.privacy.get(),
+    );
+
+  if (!(await read()).enabled) return;
+
+  const pending = dashboard.evaluate(
+    async () =>
+      (
+        window as unknown as { api: { privacy: { set: (e: boolean) => Promise<unknown> } } }
+      ).api.privacy.set(false),
+  );
+
+  // Main hosts the confirm in the FOCUSED app window, which is usually the
+  // always-on-top Cue Card rather than the dashboard — so answer it wherever it
+  // actually rendered instead of assuming.
+  const windows = dashboard
+    .context()
+    .pages()
+    .filter((p) => !p.isClosed() && !p.url().includes('view=selection'));
+  await Promise.any(
+    windows.map(async (p) => {
+      const btn = p.getByRole('button', { name: /turn off privacy mode/i });
+      await btn.waitFor({ state: 'visible', timeout: 20_000 });
+      await btn.click();
+    }),
+  );
+  await pending;
+
+  if ((await read()).enabled) {
+    throw new Error('Privacy Mode is still on — external recordings would be blank.');
+  }
+}
+
 /** Inject the real API key (live tier) via the typed preload facade. No-op without a key. */
 export async function setApiKey(dashboard: Page): Promise<void> {
   const key = process.env.OPENAI_API_KEY;

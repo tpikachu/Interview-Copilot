@@ -1,4 +1,4 @@
-import { test, expect, hasKey, setApiKey } from './fixtures';
+import { test, expect, disablePrivacyMode, hasKey, setApiKey } from './fixtures';
 import { resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
 
@@ -29,9 +29,7 @@ test('@capture marketing screenshots', async ({ dashboard }) => {
   mkdirSync(OUT, { recursive: true });
 
   await setApiKey(dashboard);
-  await dashboard.evaluate(async () => {
-    await (window as any).api.privacy.set(false); // reveal windows for the capture
-  });
+  await disablePrivacyMode(dashboard); // reveal windows so the shots aren't blank
 
   // Seed a populated app: sample profile + parsed Spaces (JD + company research).
   const { profileId } = await dashboard.evaluate(async () =>
