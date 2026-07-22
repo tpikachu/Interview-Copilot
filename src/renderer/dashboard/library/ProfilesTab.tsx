@@ -3,10 +3,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { useProfileStore } from '../../store/useProfileStore';
 import { usePagedSearch } from '../../lib/usePagedSearch';
-import { Badge, Button, Card, Field, Page, Pager, SearchInput, TextInput } from '../../components/ui';
+import { Badge, Button, Card, Field, Pager, SearchInput, TextInput } from '../../components/ui';
 import { PlusIcon } from '../../components/icons';
 
-export default function ProfilesPage() {
+/** Library › Profile: who you are — name, role, résumé. Create once, reuse in
+ *  every Space and session. (Formerly the standalone Profiles page.) */
+export function ProfilesTab() {
   const { profiles, load, create, remove } = useProfileStore();
   const navigate = useNavigate();
   const [name, setName] = useState('');
@@ -18,7 +20,7 @@ export default function ProfilesPage() {
     void load();
   }, [load]);
 
-  // Seed a sample profile + Google/Amazon/Stripe interviews to try the flow.
+  // Seed a sample profile + Google/Amazon/Stripe Spaces to try the flow.
   const loadSamples = async () => {
     setLoadingSamples(true);
     try {
@@ -52,15 +54,21 @@ export default function ProfilesPage() {
   };
 
   return (
-    <Page
-      title="Profiles"
-      subtitle="A profile is just you: your name, role, and resume. Reuse it for every job."
-      actions={
-        <Button variant="ghost" onClick={loadSamples} loading={loadingSamples} title="Create a sample profile + Google/Amazon/Stripe interviews to try the app">
+    <div>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <p className="text-sm text-neutral-400">
+          A profile is just you: your name, role, and résumé. Reuse it for every Space.
+        </p>
+        <Button
+          variant="ghost"
+          onClick={loadSamples}
+          loading={loadingSamples}
+          title="Create a sample profile + Google/Amazon/Stripe Spaces to try the app"
+        >
           Load sample data
         </Button>
-      }
-    >
+      </div>
+
       <Card className="mb-6">
         <h3 className="mb-4 font-medium">New profile</h3>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -97,7 +105,7 @@ export default function ProfilesPage() {
             <button onClick={loadSamples} className="text-indigo-300 underline hover:text-indigo-200">
               Load sample data
             </button>{' '}
-            to try the app with a sample résumé + interviews.
+            to try the app with a sample résumé + Spaces.
           </p>
         )}
         {profiles.length > 0 && paged.total === 0 && (
@@ -128,6 +136,6 @@ export default function ProfilesPage() {
         ))}
         <Pager page={paged.page} totalPages={paged.totalPages} onPage={paged.setPage} />
       </div>
-    </Page>
+    </div>
   );
 }

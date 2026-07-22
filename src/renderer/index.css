@@ -6,6 +6,18 @@
   color-scheme: dark;
 }
 
+/* Reduced motion: collapse every transition/animation app-wide (the decorative
+   keyframes below are additionally gated behind no-preference). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Listening equalizer bars (overlay) */
 @keyframes eq {
   0%,

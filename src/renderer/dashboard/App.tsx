@@ -5,12 +5,13 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { useTourStore } from '../store/useTourStore';
 import { Tour, TOUR_STEPS } from './Tour';
 import HomePage from './pages/HomePage';
-import ProfilesPage from './pages/ProfilesPage';
+import LibraryPage from './pages/LibraryPage';
 import ProfileEditorPage from './pages/ProfileEditorPage';
 import InterviewPage from './pages/InterviewPage';
 import MockPage from './pages/MockPage';
 import SparringPage from './pages/SparringPage';
 import TailorPage from './pages/TailorPage';
+import SessionsPage from './pages/SessionsPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 import WhatsNewPage from './pages/WhatsNewPage';
@@ -21,6 +22,7 @@ import { UpdateBanner } from './UpdateBanner';
 import { SavePromptModal } from './SavePromptModal';
 import {
   ChevronLeftIcon,
+  ClockIcon,
   DatabaseIcon,
   HomeIcon,
   LibraryIcon,
@@ -32,14 +34,15 @@ import { Logo } from '../components/Logo';
 // Dev-only DB explorer — shown/routed only in unpackaged builds.
 const DEV = import.meta.env.DEV;
 
-// Mode-first layout (docs/11-UX-NAVIGATION.md): the sidebar holds the four
+// Mode-first layout (docs/11-UX-NAVIGATION.md): the sidebar holds the five
 // durable sections; modes live as launcher cards on Home, so adding a mode
 // never adds a nav item. Old routes stay registered below — Home cards, the
-// tray, and hotkeys deep-link into them.
+// tray, and hotkeys deep-link into them; retired paths redirect.
 const navItems = [
   { to: '/home', label: 'Home', Icon: HomeIcon, tour: 'nav-home' },
-  { to: '/profiles', label: 'Library', Icon: LibraryIcon, tour: 'nav-library' },
-  { to: '/reports', label: 'Reports', Icon: ReportIcon, tour: 'nav-reports' },
+  { to: '/library', label: 'Library', Icon: LibraryIcon, tour: 'nav-library' },
+  { to: '/sessions', label: 'Sessions', Icon: ClockIcon, tour: 'nav-sessions' },
+  { to: '/reports', label: 'Insights', Icon: ReportIcon, tour: 'nav-reports' },
   { to: '/settings', label: 'Settings', Icon: SettingsIcon, tour: 'nav-settings' },
   ...(DEV ? [{ to: '/dev', label: 'DB Explorer', Icon: DatabaseIcon, tour: 'nav-dev' }] : []),
 ];
@@ -167,12 +170,15 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/home" replace />} />
             <Route path="/home" element={<HomePage />} />
-            <Route path="/profiles" element={<ProfilesPage />} />
+            <Route path="/library" element={<LibraryPage />} />
+            {/* Old route, redirected: the profiles list is the Library's default tab. */}
+            <Route path="/profiles" element={<Navigate to="/library" replace />} />
             <Route path="/profiles/:id" element={<ProfileEditorPage />} />
             <Route path="/interview" element={<InterviewPage />} />
             <Route path="/mock" element={<MockPage />} />
             <Route path="/sparring" element={<SparringPage />} />
             <Route path="/tailor" element={<TailorPage />} />
+            <Route path="/sessions" element={<SessionsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/whats-new" element={<WhatsNewPage />} />

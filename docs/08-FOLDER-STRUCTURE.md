@@ -95,9 +95,11 @@ AI_Inter/
 │     │  └─ usePagedSearch.ts
 │     ├─ store/                 # zustand: useProfileStore.ts  useSettingsStore.ts  useTourStore.ts
 │     ├─ dashboard/
-│     │  ├─ App.tsx             # router + shell (hosts the guided tour)
+│     │  ├─ App.tsx             # router + shell (5-section sidebar, hosts the guided tour)
 │     │  ├─ Tour.tsx            # first-run guided tour (spotlight + steps)
-│     │  └─ pages/  (Profiles, ProfileEditor, Session, Mock, Reports, Settings)
+│     │  ├─ StartSessionModal.tsx  startFlow.ts   # the shared universal start flow
+│     │  ├─ library/            # Library tabs: ProfilesTab  SpacesTab  DocumentsTab
+│     │  └─ pages/  (Home, Library, ProfileEditor, Interview, Mock, Sparring, Tailor, Sessions, Reports=Insights, Settings)
 │     ├─ overlay/               # always-on-top Cue Card (contribution feed)
 │     │  ├─ Overlay.tsx          # shell: window state, IPC subscriptions, composition
 │     │  ├─ store/useOverlayStore.ts   # zustand card feed (reducers in cards/model.ts)
