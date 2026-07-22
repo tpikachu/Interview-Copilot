@@ -280,7 +280,13 @@ export function Dropdown({
                     ? 'bg-indigo-600/25 text-indigo-200'
                     : 'text-neutral-200 hover:bg-neutral-800'
                 }`}
-                onClick={() => {
+                onClick={(e) => {
+                  // Same <label> quirk as the toggle button above: inside a
+                  // Field, the label re-dispatches this click onto the toggle
+                  // button, which REOPENS the list right after choosing.
+                  // Cancel the default so picking an option actually closes it.
+                  e.preventDefault();
+                  e.stopPropagation();
                   setOpen(false);
                   onChange(o.value);
                 }}
