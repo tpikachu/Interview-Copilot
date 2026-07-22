@@ -1,0 +1,21 @@
+/** Feature flags for modes/surfaces that are designed but not shipped.
+ *  Planned things are GATED here rather than rendered as dead-looking cards —
+ *  flipping a flag is the release switch when its prompt lands (Meeting in
+ *  Prompt 7, Memory in 8, Voice in 9, Companion in 10). Shared so main-process
+ *  mode registration can consult the same source of truth later. */
+export const FLAGS = {
+  /** Interviewer Assist mode (question suggestions, coverage tracking). */
+  interviewerAssist: false,
+  /** Meeting Copilot mode (quiet ambient contributions in meetings). */
+  meeting: false,
+  /** Tutor mode (voice dialogue + drills over your material). */
+  tutor: false,
+  /** Companion mode (ambient presence with memory). */
+  companion: false,
+  /** Long-term memory (Library tab + status chip + engine recall). */
+  memory: false,
+  /** "Talk to BrainCue" — spoken replies / voice conversation. */
+  voice: false,
+} as const;
+
+export type FlagName = keyof typeof FLAGS;

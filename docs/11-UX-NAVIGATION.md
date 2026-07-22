@@ -123,6 +123,18 @@ window, not window/layout work.
 
 ## 6. Execution order (inside milestone 1.3)
 
+> **Status (2026-07-22, Spaces-UX PR):** steps 1, 2, and 4 are DELIVERED —
+> Home is the universal launcher ("How can BrainCue help right now?" +
+> primary actions + status chips + recents + flag-gated Labs strip), the
+> Library merged Profiles/Spaces/Documents under `/library` tabs (jobs UI
+> lives in the Spaces tab; Tailor is a Space action), the sidebar is
+> Home/Library/Sessions/Insights/Settings, and the Tour was rewritten. The
+> shared start flow shipped as `StartSessionModal` (mode → Space → source →
+> transparency summary → explicit start); flags live in `src/shared/flags.ts`.
+> Step 3 (full SessionView extraction from InterviewPage) is deferred — the
+> interview workspace stays intact partly because the privacy hard test pins
+> its profile-select → "Interviews" flow; revisit when Meeting lands.
+
 Each step lands green on the parity gate:
 
 1. **Home + collapsed sidebar.** Add `/home` with cards for the *existing*

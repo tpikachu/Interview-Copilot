@@ -24,12 +24,12 @@ export const TOUR_STEPS: TourStep[] = [
   {
     target: 'nav-library',
     title: '2 · Build your Library',
-    body: 'The Library holds who you are: your profile with name, target role, and résumé. We parse the résumé so answers are grounded in YOUR real experience — never made up. Create it once and reuse it everywhere.',
+    body: 'The Library holds who you are and what BrainCue should know: your profile (name, role, résumé) and your Spaces — one per context, e.g. a job with its JD and company research. We parse everything so answers are grounded in YOUR real world — never made up.',
   },
   {
     target: 'nav-home',
     title: '3 · Start from Home',
-    body: 'Home is the launcher: pick what we’re doing. Interview Copilot and Practice are live today; the other modes show where BrainCue is headed.',
+    body: 'Home is the launcher: “Start listening” opens the shared start flow — pick the mode, the Space, and the audio source, see exactly what will be captured and sent, then start. Interview Copilot and Practice are live today; Labs shows what’s coming.',
   },
   {
     target: 'mode-interview',
@@ -59,9 +59,9 @@ export const TOUR_STEPS: TourStep[] = [
     body: 'The Practice card rehearses the real thing: a mock interviewer asks questions aloud, or a sparring drill coaches every spoken answer. A safe way to see BrainCue in action.',
   },
   {
-    target: 'nav-reports',
+    target: 'nav-sessions',
     title: 'Review afterwards',
-    body: 'Reports group by client → interview → session, with a per-question type breakdown. Open any session for a coaching report: summary, strengths, improvements, and per-question notes.',
+    body: 'Sessions is your history — open any saved session for a coaching report: summary, strengths, improvements, and per-question notes. Insights aggregates your practice progress over time.',
   },
   {
     target: 'nav-settings',
@@ -70,7 +70,7 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     title: 'You’re set 🚀',
-    body: 'That’s the whole flow: Library profile → Home → Interview → Start → Cue Card → Stop & save → Reports. Replay this tour anytime from Settings → Getting started.',
+    body: 'That’s the whole flow: Library profile → Home → Start listening → Cue Card → Stop & save → Sessions. Replay this tour anytime from Settings → Getting started.',
   },
 ];
 
