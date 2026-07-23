@@ -99,10 +99,13 @@ if (touched.has('package-lock.json') && !touched.has('package.json')) {
   failures.push('package-lock.json changed without package.json — dependency churn is not accepted');
 }
 
-// ── Linked issue (warn-only until the bounty backlog is live) ──────────────
+// ── Linked issue (ENFORCED — the bounty backlog is live) ───────────────────
+// Every external PR must start from an issue: this gate is a required status
+// check, so no linked issue = no merge. Re-runs on PR body edits, so adding
+// "Closes #N" to the description unblocks without a new push.
 if (!/(close[sd]?|fixe?[sd]?|resolve[sd]?)\s*:?\s+#\d+/i.test(BODY) && !isMaintainer) {
-  warnings.push(
-    'no linked issue found in the PR body — score-bearing work must start from a maintainer-labeled bounty issue (see CONTRIBUTING.md)',
+  failures.push(
+    'no linked issue in the PR body — add "Closes #<issue>". Work must start from an issue (ideally a maintainer-labeled bounty:* one — see CONTRIBUTING.md)',
   );
 }
 

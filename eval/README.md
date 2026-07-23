@@ -11,7 +11,7 @@ The machinery behind the scorecard comment on every PR. Design of record:
 | `config/weights.json` | Dimension weights, gates, size caps. |
 | `config/rubric.md` | The LLM review contract — ground rules, per-dimension criteria, gaming findings. The scorecard pins `sha256(weights.json + rubric.md)` so miners can verify which rubric scored them; changing either is a rubric version bump, via PR only. |
 | `config/labels.json` | The label taxonomy (areas, difficulty, `bounty:*`, `eval:*`). Pushed to GitHub with `node scripts/sync-labels.mjs`. |
-| `gates/intake.mjs` | Size caps (waived for maintainers), binary/generated-path bans, lockfile-without-manifest, linked-issue check (advisory). |
+| `gates/intake.mjs` | Size caps (waived for maintainers), binary/generated-path bans, lockfile-without-manifest, linked-issue requirement (external PRs must carry `Closes #N` — enforced, since this gate is a required check). |
 | `gates/secret-scan.mjs` | Scans the PR's added lines for real credential patterns. A hit is a hard failure and means the credential is already compromised. |
 | `gates/coverage-diff.mjs` | Runs the unit suite (hard gate), then measures unit coverage of **this PR's changed executable lines** in `src/main` + `src/shared` (advisory floor 70%). Runs inside `ci.yml`, where dependencies are already installed. The renderer is out of scope — it's exercised by the e2e suite against the built app. |
 | `llm/review.mjs` | The rubric-pinned LLM review: OpenAI Responses API, `gpt-5` reasoning, `strict: true` json_schema scorecard (the model *cannot* output anything else), advisory-only — every failure path exits 0. |
@@ -60,7 +60,11 @@ GitHub-annotation-style findings.
 ## Principles the pipeline must never violate
 
 1. **Never auto-merge.** On SN74 the maintainer's merge is the trust anchor;
-   the pipeline pre-makes the decision, a human commits it.
+   the pipeline pre-makes the decision, a human commits it. (GitHub's native
+   auto-merge — armed by `auto-merge.yml`, firing on the maintainer's
+   **approval** — doesn't violate this: the human approval is the decision,
+   automation just saves the second click. No score, gate, or bot approval
+   can trigger a merge.)
 2. **Never auto-close, never file "changes requested" reviews.** Miner
    credibility = merged/(merged+closed) with a 0.80 floor, and each
    changes-requested review costs 15% of a PR's score — bot feedback stays in

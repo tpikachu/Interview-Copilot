@@ -154,10 +154,16 @@ section is forward-looking, but the workflow below is already how the repo
 runs, and it is designed around how SN74 actually scores
 ([docs/13-GITTENSOR.md](docs/13-GITTENSOR.md) has the full mechanics):
 
-- **Start from a labeled issue.** Maintainer-labeled `bounty:*` issues carry
-  SN74's maintainer-issue multiplier (×1.66) — and they're the work we will
-  actually merge. Unsolicited scope has the highest close risk, and closed
-  PRs damage your credibility ratio (the 0.80 eligibility floor).
+- **Start from an issue — enforced.** Your PR body must contain
+  `Closes #<issue>` or the intake gate (a required check) fails; fixing the
+  description re-runs it, no push needed. Prefer maintainer-labeled
+  `bounty:*` issues: they carry SN74's maintainer-issue multiplier (×1.66)
+  and they're the work we will actually merge. Unsolicited scope has the
+  highest close risk, and closed PRs damage your credibility ratio (the 0.80
+  eligibility floor).
+- **Approval is the merge.** When a maintainer approves your PR and the
+  required checks are green, it merges automatically (native auto-merge,
+  armed on every PR) — no waiting on a second click.
 - **Every PR is evaluated automatically** (see [eval/](eval/)): intake
   guards, a secret scan, unit coverage of your changed lines (advisory floor
   70%), and a rubric-pinned LLM review that scores eight dimensions with
