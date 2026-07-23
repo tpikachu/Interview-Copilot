@@ -20,32 +20,44 @@ layout: null
 <meta name="twitter:image" content="https://tpikachu.github.io/BrainCue/images/home.png" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Crect width='1024' height='1024' rx='232' fill='%234F46E5'/%3E%3Cpath d='M326 250H698a104 104 0 0 1 104 104v212a104 104 0 0 1-104 104H470L332 778l46-108h-52a104 104 0 0 1-104-104V354a104 104 0 0 1 104-104z' fill='%23fff'/%3E%3C/svg%3E" />
 <style>
+  /* ————————————————————————————————————————————————————————
+     BrainCue · landing
+     Editorial-luxury system: serif display over refined sans,
+     hairline rules, restrained indigo, generous air.
+     Self-contained — system fonts only, no external requests.
+  ———————————————————————————————————————————————————————— */
   :root {
-    --bg: #0a0a0b;
-    --bg-soft: #131315;
-    --card: rgba(255,255,255,.035);
-    --border: rgba(255,255,255,.09);
-    --fg: #f4f4f5;
-    --fg-dim: #a1a1aa;
-    --fg-faint: #71717a;
-    --accent: #7c7df7;
-    --accent-strong: #4f46e5;
-    --green: #3fb950;
-    --amber: #d29922;
-    --radius: 16px;
-    --maxw: 1080px;
+    --bg: #070708;
+    --bg-2: #0c0c0e;
+    --card: rgba(255,255,255,.028);
+    --card-hover: rgba(255,255,255,.05);
+    --hairline: rgba(255,255,255,.075);
+    --hairline-strong: rgba(255,255,255,.14);
+    --ink: #eeeef1;
+    --ink-dim: #9d9da6;
+    --ink-faint: #67676f;
+    --accent: #8b8cf9;
+    --accent-deep: #4f46e5;
+    --green: #4ec26b;
+    --amber: #d2a53e;
+    --radius: 18px;
+    --maxw: 1120px;
+    --serif: ui-serif, Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
   }
   @media (prefers-color-scheme: light) {
     :root {
-      --bg: #ffffff;
-      --bg-soft: #f6f6f8;
-      --card: rgba(0,0,0,.025);
-      --border: rgba(0,0,0,.1);
-      --fg: #18181b;
-      --fg-dim: #52525b;
-      --fg-faint: #71717a;
+      --bg: #faf9f7;
+      --bg-2: #f2f1ee;
+      --card: rgba(20,20,24,.025);
+      --card-hover: rgba(20,20,24,.05);
+      --hairline: rgba(20,20,24,.1);
+      --hairline-strong: rgba(20,20,24,.2);
+      --ink: #1b1b1f;
+      --ink-dim: #55555e;
+      --ink-faint: #85858d;
       --accent: #4f46e5;
-      --accent-strong: #4338ca;
+      --accent-deep: #4338ca;
       --green: #1a7f37;
       --amber: #9a6700;
     }
@@ -53,150 +65,191 @@ layout: null
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--fg);
-    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.7 var(--sans);
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   }
+  ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
   a { color: var(--accent); text-decoration: none; }
-  a:hover { text-decoration: underline; }
+  a:hover { text-decoration: underline; text-underline-offset: 3px; }
   img, video { max-width: 100%; height: auto; display: block; }
-  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
-  section { padding: 76px 0; border-top: 1px solid var(--border); }
-  section:first-of-type { border-top: 0; }
-  h1, h2, h3 { line-height: 1.25; letter-spacing: -.02em; margin: 0 0 12px; }
-  h2 { font-size: clamp(24px, 3.2vw, 32px); }
-  h3 { font-size: 17px; }
-  p { margin: 0 0 14px; }
-  .lede { color: var(--fg-dim); font-size: 17px; max-width: 62ch; }
-  .eyebrow {
-    text-transform: uppercase; letter-spacing: .12em; font-size: 12px;
-    font-weight: 600; color: var(--fg-faint); margin-bottom: 10px;
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 28px; }
+
+  /* Hairline gradient rules between sections — finer than a solid border. */
+  section { padding: 108px 0; position: relative; }
+  section + section::before, footer::before {
+    content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: min(92%, var(--maxw)); height: 1px;
+    background: linear-gradient(90deg, transparent, var(--hairline-strong), transparent);
   }
 
-  /* ── header ───────────────────────────────────────────────── */
+  h1, h2 { font-family: var(--serif); font-weight: 480; letter-spacing: -.015em; line-height: 1.16; margin: 0 0 16px; }
+  h2 { font-size: clamp(28px, 3.6vw, 40px); }
+  h3 { font-size: 16.5px; line-height: 1.3; letter-spacing: -.01em; margin: 0 0 8px; }
+  p { margin: 0 0 14px; }
+  em.flair { font-style: italic; color: var(--accent); }
+  .lede { color: var(--ink-dim); font-size: 17.5px; max-width: 60ch; }
+  .eyebrow {
+    display: flex; align-items: center; gap: 14px;
+    text-transform: uppercase; letter-spacing: .24em; font-size: 11.5px;
+    font-weight: 600; color: var(--ink-faint); margin-bottom: 18px;
+  }
+  .eyebrow::after { content: ""; height: 1px; width: 56px; background: var(--hairline-strong); }
+  .eyebrow .no { color: var(--accent); font-family: var(--serif); font-style: italic; letter-spacing: 0; font-size: 13px; }
+
+  /* Scroll reveal — progressive enhancement, disabled for reduced motion. */
+  .r { opacity: 0; transform: translateY(16px); transition: opacity .7s ease, transform .7s ease; }
+  .r.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .r { opacity: 1; transform: none; transition: none; }
+  }
+
+  /* ── header ─────────────────────────────────────────────── */
   header {
     position: sticky; top: 0; z-index: 20;
-    backdrop-filter: blur(12px);
-    background: color-mix(in srgb, var(--bg) 82%, transparent);
-    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(14px) saturate(1.2);
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    border-bottom: 1px solid var(--hairline);
   }
-  .nav { display: flex; align-items: center; gap: 20px; height: 60px; }
-  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; color: var(--fg); }
+  .nav { display: flex; align-items: center; gap: 26px; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 11px; font-weight: 640; font-size: 16.5px; color: var(--ink); letter-spacing: -.01em; }
   .brand:hover { text-decoration: none; }
-  .brand svg { width: 26px; height: 26px; border-radius: 7px; }
+  .brand svg { width: 27px; height: 27px; border-radius: 7px; }
   .nav .spacer { flex: 1; }
-  .nav a.navlink { color: var(--fg-dim); font-size: 14px; }
-  .nav a.navlink:hover { color: var(--fg); text-decoration: none; }
-  @media (max-width: 720px) { .nav a.navlink.hide-sm { display: none; } }
-
-  /* ── hero ─────────────────────────────────────────────────── */
-  .hero { padding: 80px 0 34px; text-align: center; }
-  .hero-mark { width: 72px; height: 72px; border-radius: 18px; margin: 0 auto 22px; }
-  .hero h1 { font-size: clamp(34px, 6vw, 54px); }
-  .grad {
-    background: linear-gradient(100deg, var(--accent) 0%, var(--accent-strong) 55%, var(--accent) 100%);
-    -webkit-background-clip: text; background-clip: text; color: transparent;
+  .nav a.navlink { color: var(--ink-dim); font-size: 13.5px; letter-spacing: .02em; }
+  .nav a.navlink:hover { color: var(--ink); text-decoration: none; }
+  .nav a.ghost {
+    border: 1px solid var(--hairline-strong); border-radius: 999px;
+    padding: 7px 16px; color: var(--ink); font-size: 13.5px; font-weight: 600;
+    transition: border-color .2s ease, background .2s ease;
   }
-  .hero .lede { margin: 0 auto 26px; font-size: 18px; }
-  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .nav a.ghost:hover { text-decoration: none; border-color: var(--accent); background: var(--card); }
+  @media (max-width: 780px) { .nav a.navlink { display: none; } }
+
+  /* ── hero ───────────────────────────────────────────────── */
+  .hero { padding: 108px 0 0; text-align: center; position: relative; overflow: clip; }
+  .hero::before {
+    content: ""; position: absolute; inset: -20% -10% auto; height: 90%;
+    background:
+      radial-gradient(46% 42% at 50% 26%, color-mix(in srgb, var(--accent-deep) 22%, transparent), transparent 70%),
+      radial-gradient(30% 30% at 68% 16%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%);
+    pointer-events: none;
+  }
+  .hero-inner { position: relative; }
+  .hero-mark { width: 68px; height: 68px; border-radius: 17px; margin: 0 auto 30px; box-shadow: 0 12px 40px -12px color-mix(in srgb, var(--accent-deep) 60%, transparent); }
+  .hero h1 { font-size: clamp(40px, 6.4vw, 66px); letter-spacing: -.02em; margin-bottom: 20px; }
+  .hero h1 .it { font-style: italic; background: linear-gradient(95deg, var(--accent), var(--accent-deep) 60%, var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero .lede { margin: 0 auto 34px; font-size: 18.5px; }
+  .cta { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
   .btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 11px 20px; border-radius: 11px; font-weight: 600; font-size: 15px;
-    border: 1px solid var(--border); color: var(--fg); background: var(--card);
-    transition: transform .12s ease, border-color .12s ease;
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 12px 24px; border-radius: 999px; font-weight: 600; font-size: 14.5px;
+    letter-spacing: .01em; border: 1px solid var(--hairline-strong);
+    color: var(--ink); background: transparent;
+    transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
   }
-  .btn:hover { text-decoration: none; transform: translateY(-1px); border-color: var(--accent); }
+  .btn:hover { text-decoration: none; transform: translateY(-1px); border-color: var(--accent); background: var(--card); }
   .btn.primary {
-    background: linear-gradient(180deg, var(--accent) 0%, var(--accent-strong) 100%);
+    background: linear-gradient(180deg, var(--accent) 0%, var(--accent-deep) 100%);
     border-color: transparent; color: #fff;
+    box-shadow: 0 10px 30px -10px color-mix(in srgb, var(--accent-deep) 70%, transparent);
   }
-  .note { color: var(--fg-faint); font-size: 13px; margin-top: 18px; }
-  .trust {
-    display: flex; gap: 8px 22px; justify-content: center; flex-wrap: wrap;
-    margin-top: 26px; color: var(--fg-dim); font-size: 13.5px; font-weight: 600;
+  .btn.primary:hover { box-shadow: 0 14px 36px -10px color-mix(in srgb, var(--accent-deep) 85%, transparent); }
+  .pillars {
+    display: flex; justify-content: center; flex-wrap: wrap;
+    margin: 40px auto 0; color: var(--ink-faint);
+    font-size: 12px; letter-spacing: .18em; text-transform: uppercase; font-weight: 600;
   }
-  .trust span { display: inline-flex; align-items: center; gap: 7px; }
-  .hero-shot { position: relative; margin: 44px auto 0; max-width: 940px; padding: 0 24px; }
-  .hero-shot::before {
-    content: ""; position: absolute; inset: 8% 12% -4% 12%; z-index: -1;
-    background: radial-gradient(60% 60% at 50% 40%, color-mix(in srgb, var(--accent-strong) 32%, transparent), transparent 70%);
-    filter: blur(48px);
-  }
-  .hero-shot img {
-    border: 1px solid var(--border); border-radius: 14px;
-    box-shadow: 0 24px 80px -24px rgba(0,0,0,.55);
-  }
+  .pillars span { padding: 0 22px; position: relative; line-height: 2.2; }
+  .pillars span + span::before { content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%); height: 12px; width: 1px; background: var(--hairline-strong); }
 
-  /* ── grids / cards ────────────────────────────────────────── */
-  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-  .card {
-    border: 1px solid var(--border); background: var(--card);
-    border-radius: var(--radius); padding: 20px;
+  /* Layered product composition: Cue Card floating over the dashboard. */
+  .stage { position: relative; margin: 64px auto -2px; max-width: 980px; padding: 0 28px; }
+  .stage .primary-shot {
+    border: 1px solid var(--hairline-strong); border-radius: 16px 16px 0 0; border-bottom: 0;
+    box-shadow: 0 -20px 90px -30px color-mix(in srgb, var(--accent-deep) 45%, transparent), 0 30px 90px -20px rgba(0,0,0,.6);
   }
-  .card.dim { opacity: .62; }
-  .card h3 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
-  .card p { color: var(--fg-dim); font-size: 14.5px; margin: 0; }
-  .who { color: var(--fg-faint); font-size: 12.5px; margin: 0 0 8px !important; }
+  .stage .float-shot {
+    position: absolute; right: 0; bottom: -34px; width: clamp(150px, 24%, 230px);
+    border: 1px solid var(--hairline-strong); border-radius: 12px;
+    box-shadow: 0 30px 70px -18px rgba(0,0,0,.75);
+    transform: rotate(1.6deg);
+  }
+  @media (max-width: 640px) { .stage .float-shot { display: none; } }
+  .hero-base { border-top: 1px solid var(--hairline); background: var(--bg-2); height: 56px; }
+
+  /* ── cards / grids ──────────────────────────────────────── */
+  .grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .card {
+    border: 1px solid var(--hairline); background: var(--card);
+    border-radius: var(--radius); padding: 26px 24px;
+    transition: border-color .25s ease, background .25s ease, transform .25s ease;
+  }
+  .card:hover { border-color: var(--hairline-strong); background: var(--card-hover); transform: translateY(-2px); }
+  .card.dim { opacity: .58; }
+  .card.dim:hover { opacity: .8; }
+  .card h3 { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .card p { color: var(--ink-dim); font-size: 14.5px; margin: 0; }
+  .who { color: var(--ink-faint); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 10px !important; }
   .badge {
-    font-size: 11px; font-weight: 700; letter-spacing: .03em;
-    padding: 2px 8px; border-radius: 999px; white-space: nowrap;
-    border: 1px solid currentColor;
+    font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    padding: 3px 9px; border-radius: 999px; white-space: nowrap; border: 1px solid currentColor;
   }
   .b-ship { color: var(--green); }
   .b-labs { color: var(--amber); }
-  .b-soon { color: var(--fg-faint); }
+  .b-soon { color: var(--ink-faint); }
 
-  /* ── how it works ─────────────────────────────────────────── */
-  .steps { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); counter-reset: step; }
-  .step { border: 1px solid var(--border); background: var(--card); border-radius: var(--radius); padding: 20px; }
-  .step::before {
-    counter-increment: step; content: "0" counter(step);
-    display: block; font-size: 12.5px; font-weight: 700; letter-spacing: .1em;
-    color: var(--accent); margin-bottom: 10px;
-  }
-  .step h3 { margin-bottom: 6px; }
-  .step p { color: var(--fg-dim); font-size: 14px; margin: 0; }
+  /* ── steps ──────────────────────────────────────────────── */
+  .steps { display: grid; gap: 0; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; }
+  .step { padding: 30px 26px; background: var(--card); border-left: 1px solid var(--hairline); counter-increment: step; }
+  .step:first-child { border-left: 0; }
+  @media (max-width: 980px) { .step { border-left: 0; border-top: 1px solid var(--hairline); } .step:first-child { border-top: 0; } }
+  .step .n { font-family: var(--serif); font-style: italic; font-size: 30px; color: var(--accent); display: block; margin-bottom: 12px; }
+  .step h3 { font-family: var(--serif); font-weight: 520; font-size: 19px; }
+  .step p { color: var(--ink-dim); font-size: 14px; margin: 0; }
 
-  /* ── media ────────────────────────────────────────────────── */
-  figure { margin: 0 0 28px; }
-  figure img, figure video { border: 1px solid var(--border); border-radius: 12px; margin-inline: auto; }
-  figcaption { color: var(--fg-faint); font-size: 13.5px; text-align: center; margin-top: 10px; }
-  figcaption b { color: var(--fg-dim); }
-  .media-3 { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
-  .gallery { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  /* ── media ──────────────────────────────────────────────── */
+  figure { margin: 0 0 34px; }
+  figure img, figure video { border: 1px solid var(--hairline-strong); border-radius: 14px; margin-inline: auto; }
+  figcaption { color: var(--ink-faint); font-size: 13.5px; text-align: center; margin-top: 12px; }
+  figcaption b { color: var(--ink-dim); font-weight: 600; }
+  .media-3 { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .gallery { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
   .gallery figure { margin: 0; }
+  .gallery img { transition: transform .3s ease, border-color .3s ease; }
+  .gallery figure:hover img { transform: translateY(-3px); border-color: var(--accent); }
 
-  /* ── feature list ─────────────────────────────────────────── */
-  .feat { display: grid; gap: 22px 28px; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); }
-  .feat h3 { margin-bottom: 4px; }
-  .feat p { color: var(--fg-dim); font-size: 14.5px; margin: 0; }
+  /* ── feature list ───────────────────────────────────────── */
+  .feat { display: grid; gap: 30px 34px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .feat h3 { margin-bottom: 6px; }
+  .feat p { color: var(--ink-dim); font-size: 14.5px; margin: 0; }
 
-  /* ── callout ──────────────────────────────────────────────── */
   .callout {
-    border: 1px solid var(--border); border-left: 3px solid var(--amber);
-    background: var(--card); border-radius: 10px; padding: 16px 18px;
-    color: var(--fg-dim); font-size: 14.5px;
+    border: 1px solid var(--hairline); border-left: 2px solid var(--amber);
+    background: var(--card); border-radius: 12px; padding: 18px 22px;
+    color: var(--ink-dim); font-size: 14.5px;
   }
 
-  /* ── docs index ───────────────────────────────────────────── */
-  .docs-col h3 { color: var(--fg-faint); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 10px; }
+  /* ── docs index ─────────────────────────────────────────── */
+  .docs-col h3 { color: var(--ink-faint); font-size: 11.5px; text-transform: uppercase; letter-spacing: .18em; margin-bottom: 12px; }
   .docs-col ul { list-style: none; margin: 0; padding: 0; }
-  .docs-col li { padding: 5px 0; border-bottom: 1px solid var(--border); }
+  .docs-col li { padding: 7px 0; border-bottom: 1px solid var(--hairline); }
   .docs-col li:last-child { border-bottom: 0; }
-  .docs-col small { display: block; color: var(--fg-faint); font-size: 12.5px; }
+  .docs-col small { display: block; color: var(--ink-faint); font-size: 12.5px; }
 
-  /* ── table ────────────────────────────────────────────────── */
-  .tablewrap { overflow-x: auto; }
+  /* ── table ──────────────────────────────────────────────── */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--hairline); border-radius: 14px; }
   table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
-  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); }
-  th { color: var(--fg-faint); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: .06em; }
-  td { color: var(--fg-dim); }
-  td:first-child { color: var(--fg); font-weight: 600; white-space: nowrap; }
+  th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--hairline); }
+  tr:last-child td { border-bottom: 0; }
+  th { color: var(--ink-faint); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: .14em; background: var(--card); }
+  td { color: var(--ink-dim); }
+  td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; }
 
-  footer { border-top: 1px solid var(--border); padding: 32px 0 48px; color: var(--fg-faint); font-size: 13.5px; }
-  .footlinks { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 10px; }
+  footer { position: relative; padding: 44px 0 60px; color: var(--ink-faint); font-size: 13.5px; }
+  .footlinks { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 14px; }
+  .footlinks a { color: var(--ink-dim); }
 </style>
 </head>
 <body>
@@ -211,20 +264,20 @@ layout: null
       BrainCue
     </a>
     <span class="spacer"></span>
-    <a class="navlink hide-sm" href="#demo">Demo</a>
-    <a class="navlink hide-sm" href="#how">How it works</a>
-    <a class="navlink hide-sm" href="#modes">Modes</a>
-    <a class="navlink hide-sm" href="#docs">Docs</a>
-    <a class="navlink hide-sm" href="#contribute">Contribute</a>
-    <a class="navlink" href="https://github.com/tpikachu/BrainCue">GitHub</a>
+    <a class="navlink" href="#demo">Demo</a>
+    <a class="navlink" href="#how">How it works</a>
+    <a class="navlink" href="#modes">Modes</a>
+    <a class="navlink" href="#docs">Docs</a>
+    <a class="navlink" href="#contribute">Contribute</a>
+    <a class="ghost" href="https://github.com/tpikachu/BrainCue">GitHub ↗</a>
   </div>
 </header>
 
 <a id="top"></a>
 
-<!-- ── HERO ──────────────────────────────────────────────────── -->
+<!-- ── HERO ─────────────────────────────────────────────────── -->
 <div class="hero">
-  <div class="wrap">
+  <div class="wrap hero-inner">
     <svg class="hero-mark" viewBox="0 0 1024 1024" aria-hidden="true">
       <defs>
         <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
@@ -245,7 +298,7 @@ layout: null
       <path d="M392 522q7 34 36 40-29 6-36 40-7-34-36-40 29-6 36-40z" fill="#C7C8FD"/>
     </svg>
 
-    <h1>The AI that's <span class="grad">in the room with you</span></h1>
+    <h1>The AI that's <span class="it">in the room</span> with you</h1>
     <p class="lede">
       BrainCue hears the conversation you're actually in — an interview, a meeting,
       or just your working day — and contributes through a floating,
@@ -254,53 +307,56 @@ layout: null
     <div class="cta">
       <a class="btn primary" href="https://github.com/tpikachu/BrainCue/releases">Download</a>
       <a class="btn" href="#demo">Watch the demo</a>
-      <a class="btn" href="https://github.com/tpikachu/BrainCue">View source</a>
     </div>
-    <div class="trust">
-      <span>🔒 Local-first</span>
-      <span>🪟 Screen-share-invisible</span>
-      <span>🔑 Bring your own AI key</span>
-      <span>⚖️ MIT — free &amp; open source</span>
+    <div class="pillars" role="list">
+      <span role="listitem">Local-first</span>
+      <span role="listitem">Screen-share-invisible</span>
+      <span role="listitem">Your own AI key</span>
+      <span role="listitem">MIT · open source</span>
     </div>
   </div>
-  <div class="hero-shot">
-    <img src="images/home.png" width="940" fetchpriority="high"
+  <div class="stage">
+    <img class="primary-shot" src="images/home.png" width="940" fetchpriority="high"
          alt="The BrainCue dashboard: primary actions, a capture-status row, and the mode cards." />
+    <img class="float-shot" src="images/cue-card.png" loading="lazy"
+         alt="The floating Cue Card with a completed, cited answer." />
   </div>
+  <div class="hero-base"></div>
 </div>
 
-<!-- ── DEMO ──────────────────────────────────────────────────── -->
+<!-- ── DEMO ─────────────────────────────────────────────────── -->
 <section id="demo">
   <div class="wrap">
-    <p class="eyebrow">See it in action</p>
-    <h2>The full walkthrough</h2>
-    <p class="lede" style="margin-bottom:28px">
-      Captured from the real app — the launcher, the grounding library, the start
-      flow's transparency panel, and a live question answered into the Cue Card.
+    <p class="eyebrow r"><span class="no">01</span> See it in action</p>
+    <h2 class="r">Watch a question become <em class="flair">a cited answer</em></h2>
+    <p class="lede r" style="margin-bottom:36px">
+      The full walkthrough, captured from the running app by the repo's own e2e
+      pipeline — the launcher, the grounding library, the start flow's
+      transparency panel, and a live answer streaming into the Cue Card.
     </p>
 
-    <figure>
+    <figure class="r">
       <video controls preload="metadata" width="940" playsinline poster="images/home.png">
         <source src="media/braincue-demo.mp4" type="video/mp4" />
         Your browser can't play this video —
         <a href="media/braincue-demo.mp4">download it instead</a>.
       </video>
-      <figcaption><b>The demo</b> — every scene is captured from the running app by the repo's own e2e pipeline, so what you see is what ships.</figcaption>
+      <figcaption><b>The demo</b> — every scene comes from the real app, so what you see is what ships.</figcaption>
     </figure>
 
-    <figure>
+    <figure class="r">
       <img src="media/cuecard-stream.gif" width="380" loading="lazy"
            alt="The floating Cue Card: the interviewer's question is transcribed live, then a grounded, cited answer streams in." />
       <figcaption><b>The moment that matters</b> — a question is heard, and a grounded, cited answer streams in.</figcaption>
     </figure>
 
-    <figure>
+    <figure class="r">
       <img src="media/stealth-split.gif" width="940" loading="lazy"
            alt="The same moment in two views: your screen shows the Cue Card over a video call; the other side's screen share shows the call with the app absent." />
       <figcaption><b>The same moment, two views</b> — your screen has BrainCue; the shared screen (and any recording) has nothing.</figcaption>
     </figure>
 
-    <div class="media-3">
+    <div class="media-3 r">
       <figure>
         <img src="media/format-switch.gif" loading="lazy" alt="Re-tell any answer as key points, an explanation, or a STAR story — switched live." />
         <figcaption><b>Re-tell it your way</b><br />key points · explanation · STAR story</figcaption>
@@ -317,29 +373,33 @@ layout: null
   </div>
 </section>
 
-<!-- ── HOW IT WORKS ──────────────────────────────────────────── -->
+<!-- ── HOW IT WORKS ─────────────────────────────────────────── -->
 <section id="how">
   <div class="wrap">
-    <p class="eyebrow">How it works</p>
-    <h2>One pipeline, four moves</h2>
-    <p class="lede" style="margin-bottom:28px">
+    <p class="eyebrow r"><span class="no">02</span> How it works</p>
+    <h2 class="r">One pipeline, <em class="flair">four moves</em></h2>
+    <p class="lede r" style="margin-bottom:38px">
       Everything BrainCue does is the same engine cycle. Modes just tune the
       thresholds — how eager it is, what it grounds in, and where the answer goes.
     </p>
-    <div class="steps">
+    <div class="steps r">
       <div class="step">
+        <span class="n">i.</span>
         <h3>Listen</h3>
         <p>System-audio loopback hears your calls; the microphone covers the room. Everything is transcribed live, on your key.</p>
       </div>
       <div class="step">
+        <span class="n">ii.</span>
         <h3>Decide</h3>
-        <p>Trigger policies watch the transcript for the moment worth answering — a question aimed at you, an action item, a summon. Quiet by default.</p>
+        <p>Trigger policies watch for the moment worth answering — a question aimed at you, an action item, a summon. Quiet by default.</p>
       </div>
       <div class="step">
+        <span class="n">iii.</span>
         <h3>Ground</h3>
-        <p>On-device retrieval pulls the relevant lines from <i>your</i> résumé, job description, notes, and approved memories — only that context is sent out.</p>
+        <p>On-device retrieval pulls the relevant lines from <i>your</i> résumé, notes, and approved memories — only that context is sent out.</p>
       </div>
       <div class="step">
+        <span class="n">iv.</span>
         <h3>Respond</h3>
         <p>A cited answer streams into the screen-share-invisible Cue Card — or is spoken aloud, stopping the moment you talk over it.</p>
       </div>
@@ -347,17 +407,17 @@ layout: null
   </div>
 </section>
 
-<!-- ── MODES ─────────────────────────────────────────────────── -->
+<!-- ── MODES ────────────────────────────────────────────────── -->
 <section id="modes">
   <div class="wrap">
-    <p class="eyebrow">One engine, many modes</p>
-    <h2>Modes are presets, not separate products</h2>
-    <p class="lede" style="margin-bottom:28px">
-      Each mode is a configuration over the same engine, so what it learns in one,
-      it keeps in all.
+    <p class="eyebrow r"><span class="no">03</span> One engine, many modes</p>
+    <h2 class="r">Modes are presets, <em class="flair">not separate products</em></h2>
+    <p class="lede r" style="margin-bottom:36px">
+      Each mode is a configuration over the same engine — so what it learns in
+      one, it keeps in all.
     </p>
 
-    <div class="grid">
+    <div class="grid r">
       <div class="card">
         <h3>Interview Copilot <span class="badge b-ship">Shipped</span></h3>
         <p class="who">You're the candidate</p>
@@ -392,12 +452,12 @@ layout: null
   </div>
 </section>
 
-<!-- ── WHY ───────────────────────────────────────────────────── -->
+<!-- ── WHY ──────────────────────────────────────────────────── -->
 <section id="why">
   <div class="wrap">
-    <p class="eyebrow">Why BrainCue</p>
-    <h2>Things a cloud assistant structurally can't do</h2>
-    <div class="feat" style="margin-top:28px">
+    <p class="eyebrow r"><span class="no">04</span> Why BrainCue</p>
+    <h2 class="r">Things a cloud assistant <em class="flair">structurally can't do</em></h2>
+    <div class="feat r" style="margin-top:34px">
       <div>
         <h3>🎙️ Hears the real conversation</h3>
         <p>System-audio loopback puts it inside your actual calls and meetings; a microphone covers in-person. It flags the moment worth responding to, as it happens.</p>
@@ -424,19 +484,19 @@ layout: null
       </div>
     </div>
 
-    <div class="callout" style="margin-top:32px">
+    <div class="callout r" style="margin-top:36px">
       ⚠️ <b>Use only where AI assistance is permitted.</b> Your data stays on your machine;
       only the retrieved context and the current moment of conversation are sent to your AI provider.
     </div>
   </div>
 </section>
 
-<!-- ── A LOOK INSIDE ─────────────────────────────────────────── -->
+<!-- ── A LOOK INSIDE ────────────────────────────────────────── -->
 <section id="tour">
   <div class="wrap">
-    <p class="eyebrow">A look inside</p>
-    <h2>The whole app, not just the highlight reel</h2>
-    <div class="gallery" style="margin-top:28px">
+    <p class="eyebrow r"><span class="no">05</span> A look inside</p>
+    <h2 class="r">The whole app, <em class="flair">not just the highlight reel</em></h2>
+    <div class="gallery r" style="margin-top:34px">
       <figure>
         <img src="images/start-flow.png" loading="lazy" alt="The start flow: every mode in one launcher, disabled ones marked coming soon, with a transparency panel listing exactly what will be captured." />
         <figcaption><b>Start flow</b> — what will be captured, stated before anything starts</figcaption>
@@ -465,17 +525,17 @@ layout: null
   </div>
 </section>
 
-<!-- ── DOCS ──────────────────────────────────────────────────── -->
+<!-- ── DOCS ─────────────────────────────────────────────────── -->
 <section id="docs">
   <div class="wrap">
-    <p class="eyebrow">Documentation</p>
-    <h2>How it's built</h2>
-    <p class="lede" style="margin-bottom:28px">
-      BrainCue is docs-driven: the design documents below are the source of truth the
-      implementation follows.
+    <p class="eyebrow r"><span class="no">06</span> Documentation</p>
+    <h2 class="r">Built <em class="flair">docs-first</em></h2>
+    <p class="lede r" style="margin-bottom:36px">
+      The design documents below are the source of truth the implementation
+      follows — not a write-up produced after the fact.
     </p>
 
-    <div class="grid">
+    <div class="grid r">
       <div class="docs-col card">
         <h3>Start here</h3>
         <ul>
@@ -516,16 +576,16 @@ layout: null
   </div>
 </section>
 
-<!-- ── CONTRIBUTE ────────────────────────────────────────────── -->
+<!-- ── CONTRIBUTE ───────────────────────────────────────────── -->
 <section id="contribute">
   <div class="wrap">
-    <p class="eyebrow">Built in the open</p>
-    <h2>Every PR gets a scorecard, not a shrug</h2>
-    <p class="lede" style="margin-bottom:28px">
+    <p class="eyebrow r"><span class="no">07</span> Built in the open</p>
+    <h2 class="r">Every PR gets <em class="flair">a scorecard</em>, not a shrug</h2>
+    <p class="lede r" style="margin-bottom:36px">
       BrainCue runs a published, automated evaluation pipeline on every pull
       request — and pays deliberate attention to the work most projects undervalue.
     </p>
-    <div class="grid">
+    <div class="grid r">
       <div class="card">
         <h3>📋 A published standard</h3>
         <p>Instant intake gates, a secret scan, coverage of your changed lines, and a rubric-pinned AI review across eight dimensions. Every scorecard embeds the hash of the rubric that scored it — the rules can't move silently.</p>
@@ -539,7 +599,7 @@ layout: null
         <p>Work starts from maintainer-labeled <b>bounty</b> issues — features, tests, docs, performance, security — difficulty-tiered from starter to advanced. BrainCue is also preparing for listing on Bittensor's GitTensor subnet, where merged PRs earn contributors TAO.</p>
       </div>
     </div>
-    <div class="cta" style="justify-content:flex-start; margin-top:26px">
+    <div class="cta r" style="justify-content:flex-start; margin-top:30px">
       <a class="btn primary" href="https://github.com/tpikachu/BrainCue/blob/master/CONTRIBUTING.md">Read CONTRIBUTING</a>
       <a class="btn" href="https://github.com/tpikachu/BrainCue/issues?q=is%3Aissue+is%3Aopen+label%3Adifficulty%3Astarter">Starter bounties</a>
       <a class="btn" href="13-GITTENSOR.html">The evaluation pipeline</a>
@@ -547,22 +607,22 @@ layout: null
   </div>
 </section>
 
-<!-- ── DOWNLOAD ──────────────────────────────────────────────── -->
+<!-- ── DOWNLOAD ─────────────────────────────────────────────── -->
 <section id="download">
   <div class="wrap">
-    <p class="eyebrow">Get it</p>
-    <h2>Download</h2>
-    <p class="lede">
+    <p class="eyebrow r"><span class="no">08</span> Get it</p>
+    <h2 class="r">Download</h2>
+    <p class="lede r">
       Grab the latest installer from the releases page. Builds are currently
       <b>unsigned</b>, so the OS may warn on first launch — Windows SmartScreen
       ("More info → Run anyway"), macOS Gatekeeper (right-click → Open).
     </p>
-    <div class="cta" style="justify-content:flex-start; margin:22px 0 34px">
+    <div class="cta r" style="justify-content:flex-start; margin:24px 0 38px">
       <a class="btn primary" href="https://github.com/tpikachu/BrainCue/releases">All releases</a>
       <a class="btn" href="https://github.com/tpikachu/BrainCue#getting-started">Build from source</a>
     </div>
 
-    <div class="tablewrap">
+    <div class="tablewrap r">
       <table>
         <thead><tr><th>What you need</th><th>Minimum</th><th>Recommended</th></tr></thead>
         <tbody>
@@ -574,7 +634,7 @@ layout: null
         </tbody>
       </table>
     </div>
-    <p class="note">
+    <p class="lede r" style="font-size:13px; color:var(--ink-faint); margin-top:18px">
       Privacy Mode is most reliable on Windows 10 build 19041+ and Windows 11. On macOS,
       capturing system audio needs a virtual audio device (e.g. BlackHole); the microphone
       path works without one.
@@ -596,6 +656,23 @@ layout: null
     <div>MIT licensed · Local-first · Bring your own AI key</div>
   </div>
 </footer>
+
+<script>
+  // Scroll reveal — pure enhancement: without JS (or with reduced motion)
+  // everything is simply visible.
+  (function () {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches || !('IntersectionObserver' in window)) {
+      document.querySelectorAll('.r').forEach(function (el) { el.classList.add('in'); });
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, { rootMargin: '0px 0px -8% 0px' });
+    document.querySelectorAll('.r').forEach(function (el) { io.observe(el); });
+  })();
+</script>
 
 </body>
 </html>
