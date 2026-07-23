@@ -83,25 +83,35 @@ the GitTensor team (governance decision, not code).
 Stage 0  Intake guards        size caps · binary/vendored ban · linked issue ·
          (eval/gates)         secret scan on added lines — instant, deterministic
 Stage 1  Hard gates           typecheck · vitest · build (ci.yml) ·
-                              privacy invariants (architecture.test.ts)
+                              privacy invariants (architecture.test.ts) ·
+                              coverage-on-diff (advisory: % of changed
+                              executable lines the unit suite runs)
 Stage 2  Impact measurement   OUR tree-sitter token scorer — same algorithm and
          (planned)            weights as the SN74 validator, so our impact axis
                               predicts miner earnings · churn/novelty discounts
-Stage 3  LLM review           two rubric-pinned passes, evidence-anchored
-         (planned)            (file:line per claim), schema-constrained output,
-                              disagreement → eval:human
-Stage 4  Verdict              scorecard comment + eval:pass / eval:needs-work /
-                              eval:human labels · maintainer merges from queue
+Stage 3  LLM review           rubric-pinned, evidence-anchored (file:line per
+         (eval/llm)           claim), strict schema-constrained scorecard on
+                              the OpenAI Responses API (gpt-5 reasoning) —
+                              single-pass today; second pass + disagreement
+                              escalation → eval:human is Phase 2
+Stage 4  Verdict              sticky scorecard comment + eval:pass /
+         (pr-eval-report)     eval:needs-work / eval:human labels ·
+                              maintainer merges from queue
 ```
 
 Non-negotiables: the pipeline **never auto-merges** (the maintainer merge is
 SN74's trust anchor — the pipeline pre-makes the decision, a human commits it)
-and **never auto-closes**. Fork-PR safety: evaluation runs on `pull_request`
-with no secrets; diffs are treated as adversarial input (the LLM stage reads
-them as data, output constrained to the scorecard schema, nothing executed).
-Known MVP limitation: `GITHUB_TOKEN` is read-only for fork PRs, so comment/
-label posting moves to a `workflow_run` follower before external contributors
-arrive.
+and **never auto-closes**. Fork-PR safety is a privilege split across two
+workflow tiers: `pr-eval.yml` + `ci.yml` run on `pull_request` in the PR's own
+context — read-only token, no secrets, and they only *upload artifacts* —
+while `pr-eval-report.yml` runs on `workflow_run` from trusted default-branch
+code with the write token and the `OPENAI_API_KEY` secret, fetches the diff
+via the API as data, and posts the scorecard. The diff is adversarial input
+end to end: nothing from it executes, the LLM reads it as fenced data, output
+is constrained to the scorecard schema, and instructions found inside it are
+themselves reported as `gaming.prompt-injection`. A PR that edits `eval/` or
+`.github/` runs its *own* copy of the gates, so the scorecard flags those PRs
+for review-the-pipeline-first.
 
 ## 5. Scoring algorithm (target state)
 
@@ -150,9 +160,13 @@ MINER                       BRAINCUE                        SN74 VALIDATOR
 .github/CODEOWNERS               maintainer review routing (shipped)
 SECURITY.md · CODE_OF_CONDUCT.md governance                (shipped)
 eval/config/                     weights.json · labels.json · rubric.md
-eval/gates/                      intake.mjs · secret-scan.mjs (shipped)
+eval/gates/                      intake.mjs · secret-scan.mjs · coverage-diff.mjs (shipped)
+eval/llm/                        review.mjs — OpenAI Responses API, schema-
+                                 constrained scorecard, advisory (shipped)
+eval/package.json                isolated deps for the LLM stage (the app's
+                                 dependency tree never enters the privileged
+                                 report workflow)
 eval/impact/                     tree-sitter token scorer  (Phase 2)
-eval/llm/                        review harness            (Phase 2)
 eval/antigaming/                 churn · novelty · splits  (Phase 2)
 eval/calibration/                golden PRs · outcome log  (Phase 4)
 scripts/sync-labels.mjs          push eval/config/labels.json to GitHub
@@ -166,9 +180,15 @@ scripts/sync-labels.mjs          push eval/config/labels.json to GitHub
   `master` requiring CI + PR evaluation; run `sync-labels`; seed 15–20
   labeled bounty issues from the real backlog (Interviewer Assist, Tutor,
   second provider, playwright smoke, perf).
-- **Phase 1 — MVP evaluation:** coverage-on-diff, single-pass rubric-pinned
-  LLM review (advisory), calibration against ~40 historical PRs, `workflow_run`
-  commenting for forks.
+- **Phase 1 — MVP evaluation (shipped):** coverage-on-diff (advisory floor
+  70% on changed executable lines, wired into CI), single-pass rubric-pinned
+  LLM review (OpenAI Responses API, `gpt-5` reasoning, strict json_schema
+  scorecard, advisory-only), and the privileged split: `pr-eval.yml`/`ci.yml`
+  run untrusted with read-only tokens and only upload artifacts, while
+  `pr-eval-report.yml` (a `workflow_run` follower on trusted default-branch
+  code) posts the sticky scorecard + labels — which makes fork PRs get
+  feedback and is the ONLY place the `OPENAI_API_KEY` secret mounts.
+  Remaining from Phase 1: calibration against ~40 historical PRs.
 - **Phase 2 — scoring + anti-gaming:** port SN74's token scorer (their weights
   JSONs are public), churn/novelty/split detection, two-pass LLM with
   disagreement escalation, frozen rubric v1.

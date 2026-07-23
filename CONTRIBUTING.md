@@ -158,11 +158,12 @@ runs, and it is designed around how SN74 actually scores
   SN74's maintainer-issue multiplier (×1.66) — and they're the work we will
   actually merge. Unsolicited scope has the highest close risk, and closed
   PRs damage your credibility ratio (the 0.80 eligibility floor).
-- **Every PR is evaluated automatically** (see [eval/](eval/)): intake guards
-  and a secret scan now; deterministic quality gates and a rubric-pinned LLM
-  review as the pipeline matures. The scorecard comment tells you exactly
-  what to fix **before** a human reviews — bot feedback never counts as a
-  "changes requested" review, so iterating against it is free.
+- **Every PR is evaluated automatically** (see [eval/](eval/)): intake
+  guards, a secret scan, unit coverage of your changed lines (advisory floor
+  70%), and a rubric-pinned LLM review that scores eight dimensions with
+  file:line evidence. The scorecard comment tells you exactly what to fix
+  **before** a human reviews — bot feedback never counts as a "changes
+  requested" review, so iterating against it is free.
 - **We don't casually close PRs.** A failed evaluation gets `eval:needs-work`
   and a fix window; closes happen on abandonment or bad faith. Your
   credibility is safe with honest work.

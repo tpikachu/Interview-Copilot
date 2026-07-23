@@ -48,7 +48,7 @@ try {
 
 // Paths that must never appear in a PR diff. Lockfile churn is allowed only
 // alongside a package.json change (checked below), generated dirs never.
-const BANNED = [/^node_modules\//, /^release\//, /^out\//, /^dist\//, /^\.env/];
+const BANNED = [/^node_modules\//, /^release\//, /^out\//, /^dist\//, /(^|\/)\.env/];
 
 const numstat = git('diff', '--numstat', `${baseRef}...HEAD`)
   .trim()
@@ -100,7 +100,7 @@ if (touched.has('package-lock.json') && !touched.has('package.json')) {
 }
 
 // ── Linked issue (warn-only until the bounty backlog is live) ──────────────
-if (!/(close[sd]?|fixe?[sd]?|resolve[sd]?)\s+#\d+/i.test(BODY) && !isMaintainer) {
+if (!/(close[sd]?|fixe?[sd]?|resolve[sd]?)\s*:?\s+#\d+/i.test(BODY) && !isMaintainer) {
   warnings.push(
     'no linked issue found in the PR body — score-bearing work must start from a maintainer-labeled bounty issue (see CONTRIBUTING.md)',
   );

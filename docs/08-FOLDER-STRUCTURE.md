@@ -18,11 +18,15 @@ AI_Inter/
 ├─ CONTRIBUTING.md              # setup, gate, IPC contract, invariants
 ├─ SECURITY.md / CODE_OF_CONDUCT.md
 ├─ .github/workflows/           # ci.yml · release.yml · pages.yml · pr-eval.yml
+│                               #   · pr-eval-report.yml (privileged workflow_run
+│                               #     follower: scorecard comment + LLM review)
 ├─ .github/                     # CODEOWNERS · PR template · ISSUE_TEMPLATE/
 │
 ├─ eval/                        # automated PR evaluation (docs/13-GITTENSOR.md)
 │  ├─ config/                   # weights.json · labels.json · rubric.md
-│  └─ gates/                    # intake.mjs · secret-scan.mjs (Stage 0)
+│  ├─ gates/                    # intake.mjs · secret-scan.mjs · coverage-diff.mjs
+│  ├─ llm/                      # review.mjs — schema-constrained LLM review
+│  └─ package.json              # isolated deps (openai) for the LLM stage
 │
 ├─ scripts/
 │  ├─ run-electron-vite.mjs     # dev/preview launcher
